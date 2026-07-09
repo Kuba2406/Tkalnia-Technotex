@@ -122,10 +122,10 @@ CREATE TABLE IF NOT EXISTS nieobecnosci (
   id            SERIAL PRIMARY KEY,
   pracownik_id  INTEGER NOT NULL REFERENCES pracownicy(id) ON DELETE CASCADE,
   typ           TEXT    NOT NULL CHECK (typ IN ('urlop', 'chory', 'inne')),
-  od            DATE    NOT NULL,
-  do            DATE    NOT NULL,
+  data_od DATE NOT NULL,
+  data_do DATE NOT NULL,
   uwagi         TEXT    NOT NULL DEFAULT '',
-  CONSTRAINT valid_range CHECK (od <= do),
+  CONSTRAINT valid_range CHECK (data_od <= data_do),
   created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
