@@ -1,5 +1,5 @@
 -- ============================================================
--- supabase/schema.sql – Tkalnia Technotex V2
+-- supabase/schema.sql – Tkalnia Technotex V3
 -- Normalized schema (replaces single JSON blob from V1)
 --
 -- Run in Supabase SQL editor to set up the database.
@@ -65,6 +65,7 @@ CREATE TABLE IF NOT EXISTS osnowy (
   numer            TEXT    NOT NULL,
   art_id           INTEGER NOT NULL REFERENCES artykuly(id) ON DELETE RESTRICT,
   metry            NUMERIC,
+  liczba_osn       INTEGER,
   status_przew     TEXT    NOT NULL DEFAULT 'nieprzewleczona'
                      CHECK (status_przew IN ('przewleczona', 'nieprzewleczona')),
   lokalizacja      TEXT    NOT NULL DEFAULT 'magazyn'
@@ -87,6 +88,8 @@ CREATE TABLE IF NOT EXISTS zlecenia (
   numer             TEXT    NOT NULL,
   art_id            INTEGER NOT NULL REFERENCES artykuly(id) ON DELETE RESTRICT,
   ilosc_m           NUMERIC NOT NULL,
+  wykonane_m        NUMERIC NOT NULL DEFAULT 0,
+  pozostalo_m       NUMERIC NOT NULL DEFAULT 0,
   status            TEXT    NOT NULL DEFAULT 'nowe'
                       CHECK (status IN ('nowe', 'w_trakcie', 'zrealizowane')),
   data_utworzenia   DATE    NOT NULL DEFAULT CURRENT_DATE,
@@ -99,6 +102,24 @@ CREATE TABLE IF NOT EXISTS zlecenia (
   created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at        TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+ALTER TABLE osnowy
+  ADD COLUMN IF NOT EXISTS liczba_osn INTEGER;
+
+ALTER TABLE zlecenia
+  ADD COLUMN IF NOT EXISTS wykonane_m NUMERIC NOT NULL DEFAULT 0;
+
+ALTER TABLE zlecenia
+  ADD COLUMN IF NOT EXISTS pozostalo_m NUMERIC NOT NULL DEFAULT 0;
+
+UPDATE zlecenia
+SET
+  wykonane_m = GREATEST(COALESCE(wykonane_m, 0), 0),
+  pozostalo_m = GREATEST(ilosc_m - GREATEST(COALESCE(wykonane_m, 0), 0), 0)
+WHERE
+  wykonane_m IS NULL
+  OR pozostalo_m IS NULL
+  OR pozostalo_m <> GREATEST(ilosc_m - GREATEST(COALESCE(wykonane_m, 0), 0), 0);
 
 -- Add FK from osnowy to zlecenia
 ALTER TABLE osnowy
@@ -187,7 +208,7 @@ CREATE TABLE IF NOT EXISTS historia (
   created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- ---- Zadania (Tasks – NEW in V2) ----
+-- ---- Zadania (Tasks) ----
 CREATE TABLE IF NOT EXISTS zadania (
   id        SERIAL PRIMARY KEY,
   tekst     TEXT    NOT NULL,
@@ -249,6 +270,15 @@ BEGIN
 END;
 $$;
 
+CREATE OR REPLACE FUNCTION sync_zlecenie_metry()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+BEGIN
+  NEW.wykonane_m := GREATEST(COALESCE(NEW.wykonane_m, 0), 0);
+  NEW.pozostalo_m := GREATEST(COALESCE(NEW.ilosc_m, 0) - NEW.wykonane_m, 0);
+  RETURN NEW;
+END;
+$$;
+
 DO $$
 DECLARE
   tbl TEXT;
@@ -263,6 +293,12 @@ BEGIN
     );
   END LOOP;
 END $$;
+
+DROP TRIGGER IF EXISTS trg_zlecenia_sync_metry ON zlecenia;
+CREATE TRIGGER trg_zlecenia_sync_metry
+BEFORE INSERT OR UPDATE ON zlecenia
+FOR EACH ROW
+EXECUTE FUNCTION sync_zlecenie_metry();
 
 -- ============================================================
 -- INDEXES

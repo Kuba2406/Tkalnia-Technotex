@@ -34,6 +34,7 @@ export default function ZleceniaView() {
     numer: '',
     art_id: artykuly[0]?.id || 0,
     ilosc_m: 1000,
+    wykonane_m: 0,
     status: 'nowe' as StatusZlecenia,
     data_utworzenia: today(),
     termin_realizacji: nextMonth(),
@@ -58,6 +59,7 @@ export default function ZleceniaView() {
       numer: z.numer,
       art_id: z.art_id,
       ilosc_m: z.ilosc_m,
+      wykonane_m: z.wykonane_m,
       status: z.status,
       data_utworzenia: z.data_utworzenia,
       termin_realizacji: z.termin_realizacji,
@@ -117,6 +119,10 @@ export default function ZleceniaView() {
   const visible = statusFilter === 'all'
     ? zlecenia
     : zlecenia.filter(z => z.status === statusFilter);
+  const pozostaloM = Math.max(
+    (Number.isFinite(form.ilosc_m) ? form.ilosc_m : 0) - (Number.isFinite(form.wykonane_m) ? form.wykonane_m : 0),
+    0,
+  );
 
   return (
     <div>
@@ -156,6 +162,8 @@ export default function ZleceniaView() {
                   <th>Numer</th>
                   <th>Artykuł</th>
                   <th>Ilość</th>
+                  <th>Wykonane</th>
+                  <th>Pozostało</th>
                   <th>Termin</th>
                   <th>Priorytet</th>
                   <th>Status</th>
@@ -171,6 +179,8 @@ export default function ZleceniaView() {
                       <td className="fw-600">{z.numer}</td>
                       <td>{art?.nazwa || '—'}</td>
                       <td>{z.ilosc_m.toLocaleString()} m</td>
+                      <td>{z.wykonane_m.toLocaleString()} m</td>
+                      <td>{z.pozostalo_m.toLocaleString()} m</td>
                       <td>{formatDate(z.termin_realizacji)}</td>
                       <td>
                         <span className={`badge ${priorytetBadge(z.priorytet)}`}>
@@ -234,8 +244,14 @@ export default function ZleceniaView() {
         <div className="grid-2">
           <div className="form-group">
             <label>Ilość (m)</label>
-            <input className="form-control" type="number" value={form.ilosc_m} onChange={e => setField('ilosc_m', parseFloat(e.target.value))} />
+            <input className="form-control" type="number" value={form.ilosc_m} onChange={e => setField('ilosc_m', parseFloat(e.target.value || '0'))} />
           </div>
+          <div className="form-group">
+            <label>Wykonane (m)</label>
+            <input className="form-control" type="number" value={form.wykonane_m} onChange={e => setField('wykonane_m', parseFloat(e.target.value || '0'))} />
+          </div>
+        </div>
+        <div className="grid-2">
           <div className="form-group">
             <label>Priorytet</label>
             <select className="form-control" value={form.priorytet} onChange={e => setField('priorytet', e.target.value)}>
@@ -244,6 +260,10 @@ export default function ZleceniaView() {
               <option value="wysoki">Wysoki</option>
               <option value="krytyczny">Krytyczny</option>
             </select>
+          </div>
+          <div className="form-group">
+            <label>Pozostało (m)</label>
+            <input className="form-control" value={pozostaloM} readOnly />
           </div>
         </div>
         <div className="grid-2">
