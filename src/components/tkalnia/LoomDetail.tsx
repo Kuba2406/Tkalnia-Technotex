@@ -244,6 +244,7 @@ export default function LoomDetail({ krosnoid, onClose, onDelete }: Props) {
               <div className="info-grid" style={{ marginBottom: 10 }}>
                 <div className="info-item"><div className="lbl">Numer</div><div className="val">{osnowa.numer}</div></div>
                 <div className="info-item"><div className="lbl">Metry</div><div className="val">{osnowa.metry != null ? `${osnowa.metry} m` : '—'}</div></div>
+                <div className="info-item"><div className="lbl">Liczba osnów</div><div className="val">{osnowa.liczba_osn ?? '—'}</div></div>
                 <div className="info-item">
                   <div className="lbl">Przewleczenie</div>
                   <div className="val">

@@ -1,5 +1,5 @@
 -- ============================================================
--- supabase/seed.sql – Seed data for Tkalnia Technotex V2
+-- supabase/seed.sql – Seed data for Tkalnia Technotex V3
 -- Run AFTER schema.sql
 -- ============================================================
 
@@ -54,12 +54,39 @@ INSERT INTO pracownicy (imie, nazwisko, stanowisko, zmiana) VALUES
 ON CONFLICT DO NOTHING;
 
 -- ---- Zlecenia ----
-INSERT INTO zlecenia (numer, art_id, ilosc_m, status, data_utworzenia, termin_realizacji, priorytet, uwagi) VALUES
-  ('ZP-001/2025', 1, 5000, 'w_trakcie',   CURRENT_DATE - 14, CURRENT_DATE + 30,  'wysoki',   'Pilne'),
-  ('ZP-002/2025', 2, 3000, 'nowe',         CURRENT_DATE - 7,  CURRENT_DATE + 45,  'standard', ''),
-  ('ZP-003/2025', 3, 2500, 'nowe',         CURRENT_DATE - 3,  CURRENT_DATE + 60,  'niski',    ''),
-  ('ZP-004/2025', 4, 8000, 'w_trakcie',   CURRENT_DATE - 21, CURRENT_DATE + 14,  'krytyczny','Termin przesunięty'),
-  ('ZP-005/2025', 5, 1500, 'zrealizowane', CURRENT_DATE - 60, CURRENT_DATE - 10, 'standard', '')
+INSERT INTO zlecenia (numer, art_id, ilosc_m, wykonane_m, status, data_utworzenia, termin_realizacji, priorytet, uwagi) VALUES
+  ('ZP-001/2025', 1, 5000, 1800, 'w_trakcie',   CURRENT_DATE - 14, CURRENT_DATE + 30,  'wysoki',   'Pilne'),
+  ('ZP-002/2025', 2, 3000,    0, 'nowe',         CURRENT_DATE - 7,  CURRENT_DATE + 45,  'standard', ''),
+  ('ZP-003/2025', 3, 2500,  250, 'nowe',         CURRENT_DATE - 3,  CURRENT_DATE + 60,  'niski',    ''),
+  ('ZP-004/2025', 4, 8000, 5200, 'w_trakcie',   CURRENT_DATE - 21, CURRENT_DATE + 14,  'krytyczny','Termin przesunięty'),
+  ('ZP-005/2025', 5, 1500, 1500, 'zrealizowane', CURRENT_DATE - 60, CURRENT_DATE - 10, 'standard', '')
+ON CONFLICT DO NOTHING;
+
+-- ---- Osnowy ----
+INSERT INTO osnowy (numer, art_id, metry, liczba_osn, status_przew, lokalizacja, krosno_id, status_przerobki, zlecenie_id) VALUES
+  ('OSN-001/2025', 1, 1800, 12, 'przewleczona',    'krosno',        1, 'przewleczona', 1),
+  ('OSN-002/2025', 4, 2800, 16, 'przewleczona',    'krosno',        4, 'przewleczona', 4),
+  ('OSN-003/2025', 2, 3000, 14, 'nieprzewleczona', 'przewlekalnia', NULL, 'w_przygotowaniu', 2),
+  ('OSN-004/2025', 3, 2200, 10, 'nieprzewleczona', 'magazyn',       NULL, NULL, 3)
+ON CONFLICT DO NOTHING;
+
+UPDATE krosna
+SET osnow_id = (
+  SELECT id FROM osnowy WHERE numer = 'OSN-001/2025' ORDER BY id DESC LIMIT 1
+)
+WHERE numer = 'K-01';
+
+UPDATE krosna
+SET osnow_id = (
+  SELECT id FROM osnowy WHERE numer = 'OSN-002/2025' ORDER BY id DESC LIMIT 1
+)
+WHERE numer = 'K-04';
+
+-- ---- Nieobecności ----
+INSERT INTO nieobecnosci (pracownik_id, typ, data_od, data_do, uwagi) VALUES
+  (1, 'urlop', CURRENT_DATE + 7,  CURRENT_DATE + 11, 'Zaplanowany urlop'),
+  (6, 'chory', CURRENT_DATE - 1,  CURRENT_DATE + 2,  'L4'),
+  (8, 'inne',  CURRENT_DATE + 14, CURRENT_DATE + 14, 'Szkolenie')
 ON CONFLICT DO NOTHING;
 
 -- ---- Zadania ----
