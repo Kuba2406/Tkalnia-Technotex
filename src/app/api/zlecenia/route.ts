@@ -16,10 +16,15 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
+  const payload = {
+    ...body,
+    wykonane_m: body.wykonane_m ?? 0,
+    pozostalo_m: body.pozostalo_m ?? body.ilosc_m ?? 0,
+  };
   const sb = createServerClient();
   const { data, error } = await sb
     .from(TABLE)
-    .insert(body)
+    .insert(payload)
     .select()
     .single();
   if (error) return err(error.message, 400);
