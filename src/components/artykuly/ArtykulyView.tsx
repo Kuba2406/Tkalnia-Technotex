@@ -4,6 +4,7 @@ import { useState } from 'react';
 import useSWR, { mutate } from 'swr';
 import type { Artykul } from '@/types/domain';
 import { apiPost, apiPatch, apiDelete } from '@/lib/utils/api';
+import { saveHistory } from '@/lib/utils/history';
 import { notifySave } from '@/components/ui/SaveStatus';
 import Modal from '@/components/ui/Modal';
 import Confirm from '@/components/ui/Confirm';
@@ -50,10 +51,25 @@ export default function ArtykulyView() {
     if (!form.nazwa.trim()) return alert('Podaj nazwę artykułu.');
     notifySave('saving');
     try {
+      const existing = editId ? artykuly.find(a => a.id === editId) : null;
       if (editId) {
         await apiPatch(`/api/artykuly/${editId}`, form);
+        await saveHistory({
+          encja: 'artykul',
+          encja_id: editId,
+          typ: 'edycja_artykulu',
+          opis: `Zmieniono artykuł ${form.nazwa}. Typ snucia: ${existing?.rodzaj_snucia ?? '—'} → ${form.rodzaj_snucia}, rozpinka: ${existing?.rozpinka ?? '—'} → ${form.rozpinka}, gęstość bazowa: ${existing?.watki_na_cm ?? '—'} → ${form.watki_na_cm} wątków/cm.`,
+          oddzial: 'artykuly',
+        });
       } else {
-        await apiPost('/api/artykuly', form);
+        const created = await apiPost<Artykul>('/api/artykuly', form);
+        await saveHistory({
+          encja: 'artykul',
+          encja_id: created.id,
+          typ: 'utworzenie_artykulu',
+          opis: `Dodano artykuł ${created.nazwa} (${created.rodzaj_snucia}, ${created.watki_na_cm} wątków/cm).`,
+          oddzial: 'artykuly',
+        });
       }
       await mutate('/api/artykuly');
       setFormOpen(false);
@@ -68,7 +84,17 @@ export default function ArtykulyView() {
     if (!deleteId) return;
     notifySave('saving');
     try {
+      const deleted = artykuly.find(a => a.id === deleteId);
       await apiDelete(`/api/artykuly/${deleteId}`);
+      if (deleted) {
+        await saveHistory({
+          encja: 'artykul',
+          encja_id: deleted.id,
+          typ: 'usuniecie_artykulu',
+          opis: `Usunięto artykuł ${deleted.nazwa}.`,
+          oddzial: 'artykuly',
+        });
+      }
       await mutate('/api/artykuly');
       setDeleteId(null);
       notifySave('saved');
@@ -103,9 +129,9 @@ export default function ArtykulyView() {
               <thead>
                 <tr>
                   <th>Nazwa</th>
-                  <th>Wątki/cm</th>
-                  <th>Rozpinka</th>
-                  <th>Rodzaj snucia</th>
+                  <th>Gęstość bazowa</th>
+                  <th>Rozpinka szerokościowa</th>
+                  <th>Typ snucia</th>
                   <th>Szer. tkaniny</th>
                   <th>Uwagi</th>
                   <th>Akcje</th>
@@ -151,7 +177,7 @@ export default function ArtykulyView() {
         </div>
         <div className="grid-2">
           <div className="form-group">
-            <label>Wątki na cm</label>
+            <label>Gęstość bazowa / sugerowana (wątków/cm)</label>
             <input
               className="form-control"
               type="number"
@@ -160,7 +186,7 @@ export default function ArtykulyView() {
             />
           </div>
           <div className="form-group">
-            <label>Rozpinka</label>
+            <label>Rozpinka szerokościowa</label>
             <select
               className="form-control"
               value={form.rozpinka}
@@ -173,7 +199,7 @@ export default function ArtykulyView() {
         </div>
         <div className="grid-2">
           <div className="form-group">
-            <label>Rodzaj snucia</label>
+            <label>Typ snucia</label>
             <select
               className="form-control"
               value={form.rodzaj_snucia}

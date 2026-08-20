@@ -1,4 +1,4 @@
-# Tkalnia Technotex – V2
+# Tkalnia Technotex – V3
 
 Aplikacja planowania produkcji dla tkalni. Zbudowana w **Next.js 14 + React 18 + TypeScript** z backendem na **Supabase** i deploymentem na **Vercel**.
 
@@ -10,14 +10,14 @@ Aplikacja planowania produkcji dla tkalni. Zbudowana w **Next.js 14 + React 18 +
 |---|---|
 | **Tkalnia** | Mapa hali z konfigurowalnymi rzędami krosien, statusy, panel szczegółów |
 | **Artykuły** | Słownik artykułów tkanin |
-| **Zlecenia** | Zlecenia produkcyjne z priorytetem i przekazaniem do oddziału |
+| **Zlecenia** | Zlecenia produkcyjne z ilością całkowitą, wykonaną i pozostałą |
 | **Snowalnia** | Partie snowania – kolejka, status, zakończenie |
 | **Klejarnia** | Partie klejenia – kolejka, status, zakończenie |
-| **Magazyn osnów** | Stan osnów w magazynie, lokalizacje |
-| **Przewlekalnia** | Przyjęcie osnów i przekazanie na krosna |
+| **Magazyn osnów** | Manualny rejestr osnów z lokalizacją, liczbą osnów i statusem przewleczenia |
+| **Przewlekalnia** | Manualne przekazanie osnów oraz powrót do magazynu jako przewleczone / nieprzewleczone |
 | **Obecności** | Dzienne statusy pracowników + kalendarz urlopów / chorobowych |
 | **Zadania** | Prosty notatnik z priorytetami |
-| **Historia** | Dziennik kluczowych operacji |
+| **Historia** | Filtrowalny dziennik decyzji operatora i korekt |
 | **Ustawienia** | Typy krosien i układ rzędów tkalni |
 
 ---
@@ -180,4 +180,3 @@ Sprawdź poprawność kluczy w zmiennych środowiskowych.
 ## Licencja
 
 Projekt prywatny – Tkalnia Technotex.
-

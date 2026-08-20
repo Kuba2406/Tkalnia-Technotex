@@ -54,12 +54,14 @@ INSERT INTO pracownicy (imie, nazwisko, stanowisko, zmiana) VALUES
 ON CONFLICT DO NOTHING;
 
 -- ---- Zlecenia ----
-INSERT INTO zlecenia (numer, art_id, ilosc_m, status, data_utworzenia, termin_realizacji, priorytet, uwagi) VALUES
-  ('ZP-001/2025', 1, 5000, 'w_trakcie',   CURRENT_DATE - 14, CURRENT_DATE + 30,  'wysoki',   'Pilne'),
-  ('ZP-002/2025', 2, 3000, 'nowe',         CURRENT_DATE - 7,  CURRENT_DATE + 45,  'standard', ''),
-  ('ZP-003/2025', 3, 2500, 'nowe',         CURRENT_DATE - 3,  CURRENT_DATE + 60,  'niski',    ''),
-  ('ZP-004/2025', 4, 8000, 'w_trakcie',   CURRENT_DATE - 21, CURRENT_DATE + 14,  'krytyczny','Termin przesunięty'),
-  ('ZP-005/2025', 5, 1500, 'zrealizowane', CURRENT_DATE - 60, CURRENT_DATE - 10, 'standard', '')
+INSERT INTO zlecenia (
+  numer, art_id, ilosc_m, ilosc_wykonana_m, ilosc_pozostala_m, status, data_utworzenia, termin_realizacji, priorytet, uwagi
+) VALUES
+  ('ZP-001/2025', 1, 5000, 1500, 3500, 'w_trakcie',   CURRENT_DATE - 14, CURRENT_DATE + 30,  'wysoki',   'Pilne'),
+  ('ZP-002/2025', 2, 3000,    0, 3000, 'nowe',         CURRENT_DATE - 7,  CURRENT_DATE + 45,  'standard', ''),
+  ('ZP-003/2025', 3, 2500,    0, 2500, 'nowe',         CURRENT_DATE - 3,  CURRENT_DATE + 60,  'niski',    ''),
+  ('ZP-004/2025', 4, 8000, 4200, 3800, 'w_trakcie',   CURRENT_DATE - 21, CURRENT_DATE + 14,  'krytyczny','Termin przesunięty'),
+  ('ZP-005/2025', 5, 1500, 1500,    0, 'zrealizowane', CURRENT_DATE - 60, CURRENT_DATE - 10, 'standard', '')
 ON CONFLICT DO NOTHING;
 
 -- ---- Zadania ----

@@ -43,6 +43,7 @@ export interface Krosno {
   status: StatusKrosna;
   osnow_id: number | null;
   art_id_override: number | null;
+  gestosc_na_krosnie: number | null;
   rzad_id: number | null;
   pozycja: number;
   created_at: string;
@@ -64,6 +65,7 @@ export interface Osnowa {
   numer: string;
   art_id: number;
   metry: number | null;
+  liczba_osnow: number | null;
   status_przew: StatusPrzew;
   lokalizacja: LokalizacjaOsnowy;
   krosno_id: number | null;
@@ -85,6 +87,8 @@ export interface Zlecenie {
   numer: string;
   art_id: number;
   ilosc_m: number;
+  ilosc_wykonana_m: number;
+  ilosc_pozostala_m: number;
   status: StatusZlecenia;
   data_utworzenia: string;
   termin_realizacji: string;
@@ -118,8 +122,8 @@ export interface Nieobecnosc {
   id: number;
   pracownik_id: number;
   typ: TypNieobecnosci;
-  od: string;
-  do: string;
+  data_od: string;
+  data_do: string;
   uwagi: string;
   created_at: string;
   // Joined data
@@ -187,6 +191,11 @@ export interface WpisHistorii {
   typ: string;
   opis: string;
   uzytkownik: string;
+  oddzial: string | null;
+  art_id: number | null;
+  zlecenie_id: number | null;
+  krosno_id: number | null;
+  osnowa_id: number | null;
   created_at: string;
 }
 

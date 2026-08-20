@@ -2,8 +2,9 @@
 
 import { useState } from 'react';
 import useSWR, { mutate } from 'swr';
-import type { PartiaSnowalni, Artykul, Zlecenie } from '@/types/domain';
+import type { PartiaSnowalni, Artykul, Zlecenie, Krosno, LokalizacjaOsnowy, StatusPrzew, StatusZlecenia } from '@/types/domain';
 import { apiPost, apiPatch, apiDelete } from '@/lib/utils/api';
+import { saveHistory } from '@/lib/utils/history';
 import { notifySave } from '@/components/ui/SaveStatus';
 import {
   formatDate, statusPartiiLabel, statusPartiiBadge,
@@ -35,11 +36,22 @@ export default function DepartmentBatchView({ apiUrl, title, description }: Prop
   const { data: partie = [], isLoading } = useSWR<PartiaSnowalni[]>(apiUrl, fetcher);
   const { data: artykuly = [] } = useSWR<Artykul[]>('/api/artykuly', fetcher);
   const { data: zlecenia = [] } = useSWR<Zlecenie[]>('/api/zlecenia', fetcher);
+  const { data: krosna = [] } = useSWR<Krosno[]>('/api/krosna', fetcher);
 
   const [formOpen, setFormOpen] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>('active');
+  const [completionOpen, setCompletionOpen] = useState(false);
+  const [completionTarget, setCompletionTarget] = useState<PartiaSnowalni | null>(null);
+  const [completionMode, setCompletionMode] = useState<'all' | 'partial'>('all');
+  const [completedMeters, setCompletedMeters] = useState('');
+  const [warpNumber, setWarpNumber] = useState('');
+  const [warpMeters, setWarpMeters] = useState('');
+  const [warpCount, setWarpCount] = useState('');
+  const [warpLocation, setWarpLocation] = useState<LokalizacjaOsnowy>('magazyn');
+  const [warpStatus, setWarpStatus] = useState<StatusPrzew>('nieprzewleczona');
+  const [warpLoomId, setWarpLoomId] = useState<number | null>(null);
 
   const blank: PartiaForm = {
     numer: '',
@@ -81,8 +93,26 @@ export default function DepartmentBatchView({ apiUrl, title, description }: Prop
     try {
       if (editId) {
         await apiPatch(`${apiUrl}/${editId}`, form);
+        await saveHistory({
+          encja: 'partia',
+          encja_id: editId,
+          typ: 'edycja_partii',
+          opis: `Zmieniono partię ${form.numer} (${title}).`,
+          oddzial: apiUrl.split('/').pop() || null,
+          art_id: form.art_id,
+          zlecenie_id: form.zlecenie_id,
+        });
       } else {
-        await apiPost(apiUrl, form);
+        const created = await apiPost<PartiaSnowalni>(apiUrl, form);
+        await saveHistory({
+          encja: 'partia',
+          encja_id: created.id,
+          typ: 'utworzenie_partii',
+          opis: `Dodano partię ${created.numer} w oddziale ${title}.`,
+          oddzial: apiUrl.split('/').pop() || null,
+          art_id: created.art_id,
+          zlecenie_id: created.zlecenie_id,
+        });
       }
       await mutate(apiUrl);
       setFormOpen(false);
@@ -96,7 +126,19 @@ export default function DepartmentBatchView({ apiUrl, title, description }: Prop
     if (!deleteId) return;
     notifySave('saving');
     try {
+      const deleted = partie.find(p => p.id === deleteId);
       await apiDelete(`${apiUrl}/${deleteId}`);
+      if (deleted) {
+        await saveHistory({
+          encja: 'partia',
+          encja_id: deleted.id,
+          typ: 'usuniecie_partii',
+          opis: `Usunięto partię ${deleted.numer} z oddziału ${title}.`,
+          oddzial: apiUrl.split('/').pop() || null,
+          art_id: deleted.art_id,
+          zlecenie_id: deleted.zlecenie_id,
+        });
+      }
       await mutate(apiUrl);
       setDeleteId(null);
       notifySave('saved');
@@ -109,12 +151,136 @@ export default function DepartmentBatchView({ apiUrl, title, description }: Prop
     notifySave('saving');
     try {
       await apiPatch(`${apiUrl}/${id}`, { status });
+      const partia = partie.find(p => p.id === id);
+      if (partia) {
+        await saveHistory({
+          encja: 'partia',
+          encja_id: partia.id,
+          typ: 'zmiana_statusu_partii',
+          opis: `Partia ${partia.numer} zmieniła status na ${status.replace(/_/g, ' ')}.`,
+          oddzial: apiUrl.split('/').pop() || null,
+          art_id: partia.art_id,
+          zlecenie_id: partia.zlecenie_id,
+        });
+      }
       await mutate(apiUrl);
       notifySave('saved');
     } catch {
       notifySave('error');
     }
   }
+
+  function openCompleteFlow(partia: PartiaSnowalni) {
+    const zlecenie = zlecenia.find(z => z.id === partia.zlecenie_id);
+    const suggestedMeters = zlecenie?.ilosc_pozostala_m ?? partia.metry;
+    setCompletionTarget(partia);
+    setCompletionMode('all');
+    setCompletedMeters(String(suggestedMeters));
+    setWarpNumber(`${partia.numer}-O`);
+    setWarpMeters(String(partia.metry));
+    setWarpCount('');
+    setWarpLocation('magazyn');
+    setWarpStatus('nieprzewleczona');
+    setWarpLoomId(null);
+    setCompletionOpen(true);
+  }
+
+  async function confirmCompletion() {
+    if (!completionTarget) return;
+    const zlecenie = zlecenia.find(z => z.id === completionTarget.zlecenie_id);
+    const batchStatusPatch = apiPatch(`${apiUrl}/${completionTarget.id}`, { status: 'gotowe' });
+    const completedValue = completionMode === 'all'
+      ? (zlecenie?.ilosc_pozostala_m ?? completionTarget.metry)
+      : parseFloat(completedMeters);
+    if (!Number.isFinite(completedValue) || completedValue <= 0) {
+      alert('Podaj poprawną ilość wykonaną.');
+      return;
+    }
+    if (warpLocation === 'krosno' && !warpLoomId) {
+      alert('Wybierz krosno dla osnowy kierowanej bezpośrednio na tkalnię.');
+      return;
+    }
+    if (zlecenie && completedValue > zlecenie.ilosc_pozostala_m) {
+      alert('Ilość wykonana nie może być większa niż pozostała ilość zlecenia.');
+      return;
+    }
+
+    notifySave('saving');
+    try {
+      await batchStatusPatch;
+
+      if (zlecenie) {
+        const nextCompleted = zlecenie.ilosc_wykonana_m + completedValue;
+        const nextRemaining = Math.max(0, zlecenie.ilosc_m - nextCompleted);
+        const nextStatus: StatusZlecenia = nextRemaining === 0 ? 'zrealizowane' : 'w_trakcie';
+        await apiPatch(`/api/zlecenia/${zlecenie.id}`, {
+          ilosc_wykonana_m: nextCompleted,
+          ilosc_pozostala_m: nextRemaining,
+          status: nextStatus,
+        });
+        await saveHistory({
+          encja: 'zlecenie',
+          encja_id: zlecenie.id,
+          typ: 'rozliczenie_zlecenia',
+          opis: completionMode === 'all'
+            ? `Operator zakończył całe zlecenie ${zlecenie.numer}. Wykonano ${completedValue} m, pozostało ${nextRemaining} m.`
+            : `Operator ręcznie rozliczył ${completedValue} m w zleceniu ${zlecenie.numer}. Pozostało ${nextRemaining} m.`,
+          oddzial: apiUrl.split('/').pop() || null,
+          art_id: zlecenie.art_id,
+          zlecenie_id: zlecenie.id,
+        });
+      }
+
+      if (warpNumber.trim()) {
+        const warpPayload = {
+          numer: warpNumber.trim(),
+          art_id: completionTarget.art_id,
+          metry: warpMeters ? parseFloat(warpMeters) : null,
+          liczba_osnow: warpCount ? parseInt(warpCount, 10) : null,
+          status_przew: warpStatus,
+          lokalizacja: warpLocation,
+          krosno_id: warpLocation === 'krosno' ? warpLoomId : null,
+          status_przerobki: warpLocation === 'przewlekalnia' ? 'w_kolejce' : null,
+          zlecenie_id: completionTarget.zlecenie_id,
+        };
+        const createdWarp = await apiPost('/api/osnowy', warpPayload);
+        if (warpLocation === 'krosno' && warpLoomId) {
+          await apiPatch(`/api/krosna/${warpLoomId}`, { osnow_id: (createdWarp as { id: number }).id, art_id_override: null });
+        }
+        await saveHistory({
+          encja: 'osnowa',
+          encja_id: (createdWarp as { id: number }).id,
+          typ: 'utworzenie_osnowy',
+          opis: `Po zakończeniu partii ${completionTarget.numer} utworzono osnowę ${warpNumber.trim()} (${warpMeters || '—'} m) i skierowano ją do ${warpLocation}.`,
+          oddzial: apiUrl.split('/').pop() || null,
+          art_id: completionTarget.art_id,
+          zlecenie_id: completionTarget.zlecenie_id,
+          krosno_id: warpLocation === 'krosno' ? warpLoomId : null,
+          osnowa_id: (createdWarp as { id: number }).id,
+        });
+      }
+
+      await saveHistory({
+        encja: 'partia',
+        encja_id: completionTarget.id,
+        typ: 'zakonczenie_partii',
+        opis: `Zakończono partię ${completionTarget.numer}. Decyzja operatora: ${completionMode === 'all' ? 'całe zlecenie wykonane' : `${completedValue} m wykonane ręcznie`}.`,
+        oddzial: apiUrl.split('/').pop() || null,
+        art_id: completionTarget.art_id,
+        zlecenie_id: completionTarget.zlecenie_id,
+      });
+
+      await Promise.all([mutate(apiUrl), mutate('/api/zlecenia'), mutate('/api/osnowy'), mutate('/api/krosna')]);
+      setCompletionOpen(false);
+      setCompletionTarget(null);
+      notifySave('saved');
+    } catch (e: unknown) {
+      notifySave('error');
+      alert((e as Error).message);
+    }
+  }
+
+  const availableLooms = krosna.filter(k => !k.osnow_id);
 
   const visible =
     statusFilter === 'all'
@@ -191,7 +357,7 @@ export default function DepartmentBatchView({ apiUrl, title, description }: Prop
                             <button className="btn btn-sm btn-warning" onClick={() => changeStatus(p.id, 'w_trakcie')}>Rozpocznij</button>
                           )}
                           {p.status === 'w_trakcie' && (
-                            <button className="btn btn-sm btn-success" onClick={() => changeStatus(p.id, 'gotowe')}>Gotowe</button>
+                            <button className="btn btn-sm btn-success" onClick={() => openCompleteFlow(p)}>Zakończ snucie</button>
                           )}
                           <button className="btn btn-sm btn-secondary" onClick={() => openEdit(p)}>Edytuj</button>
                           <button className="btn btn-sm btn-danger" onClick={() => setDeleteId(p.id)}>Usuń</button>
@@ -273,6 +439,104 @@ export default function DepartmentBatchView({ apiUrl, title, description }: Prop
         onConfirm={handleDelete}
         onCancel={() => setDeleteId(null)}
       />
+
+      <Modal
+        open={completionOpen}
+        onClose={() => setCompletionOpen(false)}
+        title={completionTarget ? `Zakończenie partii ${completionTarget.numer}` : 'Zakończenie partii'}
+        wide
+      >
+        {completionTarget && (
+          <>
+            <div className="form-group">
+              <label>Decyzja operatora dla zlecenia</label>
+              <div className="flex gap-8 flex-wrap">
+                <button
+                  className={`btn ${completionMode === 'all' ? 'btn-primary' : 'btn-secondary'}`}
+                  onClick={() => setCompletionMode('all')}
+                  type="button"
+                >
+                  Całość zlecenia wykonana
+                </button>
+                <button
+                  className={`btn ${completionMode === 'partial' ? 'btn-primary' : 'btn-secondary'}`}
+                  onClick={() => setCompletionMode('partial')}
+                  type="button"
+                >
+                  Wpisz wykonane metry
+                </button>
+              </div>
+            </div>
+
+            {completionMode === 'partial' && (
+              <div className="form-group">
+                <label>Wykonano (m)</label>
+                <input
+                  className="form-control"
+                  type="number"
+                  value={completedMeters}
+                  onChange={e => setCompletedMeters(e.target.value)}
+                />
+              </div>
+            )}
+
+            <div className="detail-section">
+              <div className="detail-section-title">Utwórz osnowę po zakończeniu</div>
+              <div className="grid-2">
+                <div className="form-group">
+                  <label>Numer osnowy</label>
+                  <input className="form-control" value={warpNumber} onChange={e => setWarpNumber(e.target.value)} placeholder="np. O-501" />
+                </div>
+                <div className="form-group">
+                  <label>Metry osnowy</label>
+                  <input className="form-control" type="number" value={warpMeters} onChange={e => setWarpMeters(e.target.value)} />
+                </div>
+              </div>
+              <div className="grid-2">
+                <div className="form-group">
+                  <label>Liczba osnów</label>
+                  <input className="form-control" type="number" value={warpCount} onChange={e => setWarpCount(e.target.value)} placeholder="opcjonalnie" />
+                </div>
+                <div className="form-group">
+                  <label>Status przewleczenia</label>
+                  <select className="form-control" value={warpStatus} onChange={e => setWarpStatus(e.target.value as StatusPrzew)}>
+                    <option value="nieprzewleczona">Nieprzewleczona</option>
+                    <option value="przewleczona">Przewleczona</option>
+                  </select>
+                </div>
+              </div>
+              <div className="grid-2">
+                <div className="form-group">
+                  <label>Skieruj osnowę do</label>
+                  <select className="form-control" value={warpLocation} onChange={e => setWarpLocation(e.target.value as LokalizacjaOsnowy)}>
+                    <option value="magazyn">Magazyn</option>
+                    <option value="przewlekalnia">Przewlekalnia</option>
+                    <option value="krosno">Bezpośrednio na krosno</option>
+                  </select>
+                </div>
+                {warpLocation === 'krosno' && (
+                  <div className="form-group">
+                    <label>Wolne krosno</label>
+                    <select
+                      className="form-control"
+                      value={warpLoomId ?? ''}
+                      onChange={e => setWarpLoomId(e.target.value ? parseInt(e.target.value, 10) : null)}
+                    >
+                      <option value="">Wybierz krosno</option>
+                      {availableLooms.map(k => <option key={k.id} value={k.id}>{k.numer}</option>)}
+                    </select>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="modal-actions">
+              <button className="btn btn-secondary" onClick={() => setCompletionOpen(false)}>Anuluj</button>
+              <button className="btn btn-success" onClick={confirmCompletion}>Potwierdź zakończenie</button>
+            </div>
+          </>
+        )}
+      </Modal>
     </div>
   );
 }

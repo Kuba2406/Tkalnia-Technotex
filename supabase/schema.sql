@@ -53,6 +53,7 @@ CREATE TABLE IF NOT EXISTS krosna (
                     CHECK (status IN ('pracuje', 'awaria', 'zatrzymane', 'wiazanie', 'brak')),
   osnow_id        INTEGER, -- FK added after osnowy table
   art_id_override INTEGER REFERENCES artykuly(id) ON DELETE SET NULL,
+  gestosc_na_krosnie NUMERIC,
   rzad_id         INTEGER REFERENCES rzedy_krosien(id) ON DELETE SET NULL,
   pozycja         INTEGER NOT NULL DEFAULT 0,
   created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -65,6 +66,7 @@ CREATE TABLE IF NOT EXISTS osnowy (
   numer            TEXT    NOT NULL,
   art_id           INTEGER NOT NULL REFERENCES artykuly(id) ON DELETE RESTRICT,
   metry            NUMERIC,
+  liczba_osnow     INTEGER,
   status_przew     TEXT    NOT NULL DEFAULT 'nieprzewleczona'
                      CHECK (status_przew IN ('przewleczona', 'nieprzewleczona')),
   lokalizacja      TEXT    NOT NULL DEFAULT 'magazyn'
@@ -87,6 +89,8 @@ CREATE TABLE IF NOT EXISTS zlecenia (
   numer             TEXT    NOT NULL,
   art_id            INTEGER NOT NULL REFERENCES artykuly(id) ON DELETE RESTRICT,
   ilosc_m           NUMERIC NOT NULL,
+  ilosc_wykonana_m  NUMERIC NOT NULL DEFAULT 0,
+  ilosc_pozostala_m NUMERIC NOT NULL,
   status            TEXT    NOT NULL DEFAULT 'nowe'
                       CHECK (status IN ('nowe', 'w_trakcie', 'zrealizowane')),
   data_utworzenia   DATE    NOT NULL DEFAULT CURRENT_DATE,
@@ -184,8 +188,39 @@ CREATE TABLE IF NOT EXISTS historia (
   typ         TEXT    NOT NULL,   -- e.g. 'zalozenie_osnowy', 'zmiana_statusu'
   opis        TEXT    NOT NULL,
   uzytkownik  TEXT    NOT NULL DEFAULT 'Operator',
+  oddzial     TEXT,
+  art_id      INTEGER REFERENCES artykuly(id) ON DELETE SET NULL,
+  zlecenie_id INTEGER REFERENCES zlecenia(id) ON DELETE SET NULL,
+  krosno_id   INTEGER REFERENCES krosna(id) ON DELETE SET NULL,
+  osnowa_id   INTEGER REFERENCES osnowy(id) ON DELETE SET NULL,
   created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+ALTER TABLE krosna
+  ADD COLUMN IF NOT EXISTS gestosc_na_krosnie NUMERIC;
+
+ALTER TABLE osnowy
+  ADD COLUMN IF NOT EXISTS liczba_osnow INTEGER;
+
+ALTER TABLE zlecenia
+  ADD COLUMN IF NOT EXISTS ilosc_wykonana_m NUMERIC NOT NULL DEFAULT 0;
+
+ALTER TABLE zlecenia
+  ADD COLUMN IF NOT EXISTS ilosc_pozostala_m NUMERIC;
+
+UPDATE zlecenia
+SET ilosc_pozostala_m = ilosc_m
+WHERE ilosc_pozostala_m IS NULL;
+
+ALTER TABLE zlecenia
+  ALTER COLUMN ilosc_pozostala_m SET NOT NULL;
+
+ALTER TABLE historia
+  ADD COLUMN IF NOT EXISTS oddzial TEXT,
+  ADD COLUMN IF NOT EXISTS art_id INTEGER REFERENCES artykuly(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS zlecenie_id INTEGER REFERENCES zlecenia(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS krosno_id INTEGER REFERENCES krosna(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS osnowa_id INTEGER REFERENCES osnowy(id) ON DELETE SET NULL;
 
 -- ---- Zadania (Tasks – NEW in V2) ----
 CREATE TABLE IF NOT EXISTS zadania (
@@ -279,3 +314,7 @@ CREATE INDEX IF NOT EXISTS idx_obecnosci_prac ON obecnosci(pracownik_id);
 CREATE INDEX IF NOT EXISTS idx_nieob_prac     ON nieobecnosci(pracownik_id);
 CREATE INDEX IF NOT EXISTS idx_historia_encja ON historia(encja, encja_id);
 CREATE INDEX IF NOT EXISTS idx_historia_date  ON historia(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_historia_oddzial ON historia(oddzial);
+CREATE INDEX IF NOT EXISTS idx_historia_art ON historia(art_id);
+CREATE INDEX IF NOT EXISTS idx_historia_zlecenie ON historia(zlecenie_id);
+CREATE INDEX IF NOT EXISTS idx_historia_krosno ON historia(krosno_id);
