@@ -1,5 +1,5 @@
 // ============================================================
-// types/domain.ts – Domain types for Tkalnia-Technotex V2
+// types/domain.ts – Domain types for Tkalnia-Technotex V3
 // ============================================================
 
 export type RodzajSnucia = 'taśmowe' | 'zespołowe';
@@ -64,6 +64,7 @@ export interface Osnowa {
   numer: string;
   art_id: number;
   metry: number | null;
+  liczba_osn: number | null;
   status_przew: StatusPrzew;
   lokalizacja: LokalizacjaOsnowy;
   krosno_id: number | null;
@@ -85,6 +86,8 @@ export interface Zlecenie {
   numer: string;
   art_id: number;
   ilosc_m: number;
+  wykonane_m: number;
+  pozostalo_m: number;
   status: StatusZlecenia;
   data_utworzenia: string;
   termin_realizacji: string;
@@ -118,8 +121,8 @@ export interface Nieobecnosc {
   id: number;
   pracownik_id: number;
   typ: TypNieobecnosci;
-  od: string;
-  do: string;
+  data_od: string;
+  data_do: string;
   uwagi: string;
   created_at: string;
   // Joined data
@@ -190,7 +193,7 @@ export interface WpisHistorii {
   created_at: string;
 }
 
-// ---- Tasks (NEW in V2) ----
+// ---- Tasks (NEW in V3) ----
 export type PriorytetZadania = 'niski' | 'sredni' | 'wysoki';
 
 export interface Zadanie {
