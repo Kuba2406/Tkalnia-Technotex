@@ -5,21 +5,13 @@ import useSWR, { mutate } from 'swr';
 import type { Zlecenie, Artykul, StatusZlecenia, PriorytetZlecenia, PrzekazaneDo } from '@/types/domain';
 import { apiPost, apiPatch, apiDelete } from '@/lib/utils/api';
 import { notifySave } from '@/components/ui/SaveStatus';
-import {
-  formatDate, statusZleceniaLabel, statusZleceniaBadge,
-  priorytetLabel, priorytetBadge,
-} from '@/lib/utils/formatting';
+import { formatDate, statusZleceniaLabel, statusZleceniaBadge, priorytetLabel, priorytetBadge } from '@/lib/utils/formatting';
 import Modal from '@/components/ui/Modal';
 import Confirm from '@/components/ui/Confirm';
 
 const fetcher = (url: string) => fetch(url).then(r => r.json()).then(r => r.data);
-
 function today() { return new Date().toISOString().split('T')[0]; }
-function nextMonth() {
-  const d = new Date();
-  d.setMonth(d.getMonth() + 1);
-  return d.toISOString().split('T')[0];
-}
+function nextMonth() { const d = new Date(); d.setMonth(d.getMonth() + 1); return d.toISOString().split('T')[0]; }
 
 export default function ZleceniaView() {
   const { data: zlecenia = [], isLoading } = useSWR<Zlecenie[]>('/api/zlecenia', fetcher);
@@ -31,62 +23,29 @@ export default function ZleceniaView() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
 
   const blank = {
-    numer: '',
-    art_id: artykuly[0]?.id || 0,
-    ilosc_m: 1000,
-    wykonane_m: 0,
-    pozostalo_m: 1000,
-    status: 'nowe' as StatusZlecenia,
-    data_utworzenia: today(),
-    termin_realizacji: nextMonth(),
-    priorytet: 'standard' as PriorytetZlecenia,
-    uwagi: '',
-    przekazane_do: null as PrzekazaneDo | null,
-    split_lengths: [] as number[],
+    numer: '', art_id: artykuly[0]?.id || 0, ilosc_m: 1000, wykonane_m: 0, pozostalo_m: 1000,
+    status: 'nowe' as StatusZlecenia, data_utworzenia: today(), termin_realizacji: nextMonth(), priorytet: 'standard' as PriorytetZlecenia,
+    uwagi: '', przekazane_do: null as PrzekazaneDo | null, split_lengths: [] as number[],
   };
-
   const [form, setForm] = useState(blank);
   const setField = (k: string, v: unknown) => setForm(f => ({ ...f, [k]: v }));
+  const recalc = (ilosc: number, wykonane: number) => ({ ilosc_m: ilosc, wykonane_m: wykonane, pozostalo_m: Math.max(0, ilosc - wykonane) });
 
-  function openAdd() {
-    setEditId(null);
-    setForm({ ...blank, numer: `ZP-${String(zlecenia.length + 1).padStart(3, '0')}/${new Date().getFullYear()}` });
-    setFormOpen(true);
-  }
-
-  function openEdit(z: Zlecenie) {
-    setEditId(z.id);
-    setForm({
-      numer: z.numer,
-      art_id: z.art_id,
-      ilosc_m: z.ilosc_m,
-      wykonane_m: z.wykonane_m,
-      pozostalo_m: z.pozostalo_m,
-      status: z.status,
-      data_utworzenia: z.data_utworzenia,
-      termin_realizacji: z.termin_realizacji,
-      priorytet: z.priorytet,
-      uwagi: z.uwagi,
-      przekazane_do: z.przekazane_do,
-      split_lengths: z.split_lengths,
-    });
-    setFormOpen(true);
-  }
+  function openAdd() { setEditId(null); setForm({ ...blank, numer: `ZP-${String(zlecenia.length + 1).padStart(3, '0')}/${new Date().getFullYear()}` }); setFormOpen(true); }
+  function openEdit(z: Zlecenie) { setEditId(z.id); setForm({ numer: z.numer, art_id: z.art_id, ilosc_m: z.ilosc_m, wykonane_m: z.wykonane_m, pozostalo_m: z.pozostalo_m, status: z.status, data_utworzenia: z.data_utworzenia, termin_realizacji: z.termin_realizacji, priorytet: z.priorytet, uwagi: z.uwagi, przekazane_do: z.przekazane_do, split_lengths: z.split_lengths }); setFormOpen(true); }
 
   async function handleSave() {
     if (!form.numer.trim()) return alert('Podaj numer zlecenia.');
     if (!form.art_id) return alert('Wybierz artykuł.');
     notifySave('saving');
     try {
-      if (editId) await apiPatch(`/api/zlecenia/${editId}`, form);
-      else await apiPost('/api/zlecenia', form);
+      const payload = { ...form, pozostalo_m: Math.max(0, form.pozostalo_m) };
+      if (editId) await apiPatch(`/api/zlecenia/${editId}`, payload);
+      else await apiPost('/api/zlecenia', payload);
       await mutate('/api/zlecenia');
       setFormOpen(false);
       notifySave('saved');
-    } catch (e: unknown) {
-      notifySave('error');
-      alert((e as Error).message);
-    }
+    } catch (e: unknown) { notifySave('error'); alert((e as Error).message); }
   }
 
   async function handleDelete() {
@@ -97,87 +56,55 @@ export default function ZleceniaView() {
       await mutate('/api/zlecenia');
       setDeleteId(null);
       notifySave('saved');
-    } catch (e: unknown) {
-      notifySave('error');
-      alert((e as Error).message);
-    }
+    } catch (e: unknown) { notifySave('error'); alert((e as Error).message); }
+  }
+
+  async function przekazDo(z: Zlecenie, target: 'snowalnia' | 'klejarnia') {
+    notifySave('saving');
+    try {
+      await apiPatch(`/api/zlecenia/${z.id}`, { przekazane_do: target, status: 'w_trakcie' });
+      await mutate('/api/zlecenia');
+      notifySave('saved');
+    } catch (e: unknown) { notifySave('error'); alert((e as Error).message); }
   }
 
   const visible = statusFilter === 'all' ? zlecenia : zlecenia.filter(z => z.status === statusFilter);
 
   return (
     <div>
-      <div className="view-header">
-        <h2>Zlecenia produkcyjne</h2>
-        <p>Zarządzanie zleceniami produkcji</p>
-      </div>
-
+      <div className="view-header"><h2>Zlecenia produkcyjne</h2><p>Zarządzanie zleceniami produkcji</p></div>
       <div className="card">
         <div className="section-header">
           <div className="flex gap-8 items-center flex-wrap">
             <h3>Zlecenia ({visible.length})</h3>
             <select className="form-control" style={{ width: 'auto', fontSize: '0.82rem' }} value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
-              <option value="all">Wszystkie</option>
-              <option value="nowe">Nowe</option>
-              <option value="w_trakcie">W trakcie</option>
-              <option value="zrealizowane">Zrealizowane</option>
+              <option value="all">Wszystkie</option><option value="nowe">Nowe</option><option value="w_trakcie">W trakcie</option><option value="zrealizowane">Zrealizowane</option>
             </select>
           </div>
           <button className="btn btn-primary" onClick={openAdd}>+ Dodaj zlecenie</button>
         </div>
 
-        {isLoading ? (
-          <p className="text-muted text-sm">Ładowanie…</p>
-        ) : visible.length === 0 ? (
-          <div className="empty-state">Brak zleceń.</div>
-        ) : (
-          <div className="table-wrapper">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>Numer</th>
-                  <th>Artykuł</th>
-                  <th>Ilość</th>
-                  <th>Wykonane</th>
-                  <th>Pozostało</th>
-                  <th>Termin</th>
-                  <th>Priorytet</th>
-                  <th>Status</th>
-                  <th>Przekazane do</th>
-                  <th>Akcje</th>
-                </tr>
-              </thead>
-              <tbody>
-                {visible.map(z => {
-                  const art = artykuly.find(a => a.id === z.art_id);
-                  return (
-                    <tr key={z.id}>
-                      <td className="fw-600">{z.numer}</td>
-                      <td>{art?.nazwa || '—'}</td>
-                      <td>{z.ilosc_m.toLocaleString()} m</td>
-                      <td>{z.wykonane_m.toLocaleString()} m</td>
-                      <td>{z.pozostalo_m.toLocaleString()} m</td>
-                      <td>{formatDate(z.termin_realizacji)}</td>
-                      <td><span className={`badge ${priorytetBadge(z.priorytet)}`}>{priorytetLabel(z.priorytet)}</span></td>
-                      <td><span className={`badge ${statusZleceniaBadge(z.status)}`}>{statusZleceniaLabel(z.status)}</span></td>
-                      <td>{z.przekazane_do ? <span className="badge badge-purple">{z.przekazane_do === 'snowalnia' ? 'Snowalnia' : 'Klejarnia'}</span> : '—'}</td>
-                      <td>
-                        <div className="btn-group">
-                          <button className="btn btn-sm btn-secondary" onClick={() => openEdit(z)}>Edytuj</button>
-                          {!z.przekazane_do && z.status !== 'zrealizowane' && art && (
-                            <button className="btn btn-sm btn-primary" onClick={() => apiPatch(`/api/zlecenia/${z.id}`, { przekazane_do: art.rodzaj_snucia === 'zespołowe' ? 'klejarnia' : 'snowalnia', status: 'w_trakcie' }).then(() => mutate('/api/zlecenia'))}>
-                              Przekaż → {art.rodzaj_snucia === 'zespołowe' ? 'Klejarnia' : 'Snowalnia'}
-                            </button>
-                          )}
-                          <button className="btn btn-sm btn-danger" onClick={() => setDeleteId(z.id)}>Usuń</button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+        {isLoading ? <p className="text-muted text-sm">Ładowanie…</p> : visible.length === 0 ? <div className="empty-state">Brak zleceń.</div> : (
+          <div className="table-wrapper"><table className="table"><thead><tr><th>Numer</th><th>Artykuł</th><th>Ilość</th><th>Wykonane</th><th>Pozostało</th><th>Termin</th><th>Priorytet</th><th>Status</th><th>Przekazane do</th><th>Akcje</th></tr></thead><tbody>
+            {visible.map(z => { const art = artykuly.find(a => a.id === z.art_id); return (
+              <tr key={z.id}>
+                <td className="fw-600">{z.numer}</td>
+                <td>{art?.nazwa || '—'}</td>
+                <td>{z.ilosc_m.toLocaleString()} m</td>
+                <td>{z.wykonane_m.toLocaleString()} m</td>
+                <td>{z.pozostalo_m.toLocaleString()} m</td>
+                <td>{formatDate(z.termin_realizacji)}</td>
+                <td><span className={`badge ${priorytetBadge(z.priorytet)}`}>{priorytetLabel(z.priorytet)}</span></td>
+                <td><span className={`badge ${statusZleceniaBadge(z.status)}`}>{statusZleceniaLabel(z.status)}</span></td>
+                <td>{z.przekazane_do ? <span className="badge badge-purple">{z.przekazane_do === 'snowalnia' ? 'Snowalnia' : 'Klejarnia'}</span> : '—'}</td>
+                <td><div className="btn-group">
+                  <button className="btn btn-sm btn-secondary" onClick={() => openEdit(z)}>Edytuj</button>
+                  {!z.przekazane_do && z.status !== 'zrealizowane' && art && (<button className="btn btn-sm btn-primary" onClick={() => przekazDo(z, art.rodzaj_snucia === 'zespołowe' ? 'klejarnia' : 'snowalnia')}>Przekaż → {art.rodzaj_snucia === 'zespołowe' ? 'Klejarnia' : 'Snowalnia'}</button>)}
+                  <button className="btn btn-sm btn-danger" onClick={() => setDeleteId(z.id)}>Usuń</button>
+                </div></td>
+              </tr>
+            );})}
+          </tbody></table></div>
         )}
       </div>
 
@@ -187,11 +114,11 @@ export default function ZleceniaView() {
           <div className="form-group"><label>Artykuł</label><select className="form-control" value={form.art_id} onChange={e => setField('art_id', parseInt(e.target.value))}>{artykuly.map(a => <option key={a.id} value={a.id}>{a.nazwa}</option>)}</select></div>
         </div>
         <div className="grid-2">
-          <div className="form-group"><label>Ilość (m)</label><input className="form-control" type="number" value={form.ilosc_m} onChange={e => { const ilosc = parseFloat(e.target.value); setForm(f => ({ ...f, ilosc_m: ilosc, pozostalo_m: Math.max(0, ilosc - f.wykonane_m) })); }} /></div>
-          <div className="form-group"><label>Wykonane (m)</label><input className="form-control" type="number" value={form.wykonane_m} onChange={e => { const wykonane = parseFloat(e.target.value); setForm(f => ({ ...f, wykonane_m: wykonane, pozostalo_m: Math.max(0, f.ilosc_m - wykonane) })); }} /></div>
+          <div className="form-group"><label>Ilość (m)</label><input className="form-control" type="number" value={form.ilosc_m} onChange={e => { const ilosc = parseFloat(e.target.value || '0'); setForm(f => ({ ...f, ...recalc(ilosc, f.wykonane_m) })); }} /></div>
+          <div className="form-group"><label>Wykonane (m)</label><input className="form-control" type="number" value={form.wykonane_m} onChange={e => { const wykonane = parseFloat(e.target.value || '0'); setForm(f => ({ ...f, ...recalc(f.ilosc_m, wykonane) })); }} /></div>
         </div>
         <div className="grid-2">
-          <div className="form-group"><label>Pozostało (m)</label><input className="form-control" type="number" value={form.pozostalo_m} onChange={e => { const pozostalo = parseFloat(e.target.value); setForm(f => ({ ...f, pozostalo_m: pozostalo, wykonane_m: Math.max(0, f.ilosc_m - pozostalo) })); }} /></div>
+          <div className="form-group"><label>Pozostało (m)</label><input className="form-control" type="number" value={form.pozostalo_m} onChange={e => { const pozostalo = parseFloat(e.target.value || '0'); setForm(f => ({ ...f, pozostalo_m: Math.max(0, pozostalo), wykonane_m: Math.max(0, f.ilosc_m - Math.max(0, pozostalo)) })); }} /></div>
           <div className="form-group"><label>Priorytet</label><select className="form-control" value={form.priorytet} onChange={e => setField('priorytet', e.target.value)}><option value="niski">Niski</option><option value="standard">Standard</option><option value="wysoki">Wysoki</option><option value="krytyczny">Krytyczny</option></select></div>
         </div>
         <div className="grid-2">
