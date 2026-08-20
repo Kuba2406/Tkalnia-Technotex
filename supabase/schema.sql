@@ -1,6 +1,6 @@
 -- ============================================================
--- supabase/schema.sql – Tkalnia Technotex V2
--- Normalized schema (replaces single JSON blob from V1)
+-- supabase/schema.sql – Tkalnia Technotex V4
+-- Normalized schema (replaces V3)
 --
 -- Run in Supabase SQL editor to set up the database.
 -- See README.md for full setup instructions.
@@ -65,6 +65,7 @@ CREATE TABLE IF NOT EXISTS osnowy (
   numer            TEXT    NOT NULL,
   art_id           INTEGER NOT NULL REFERENCES artykuly(id) ON DELETE RESTRICT,
   metry            NUMERIC,
+  liczba_osn       INTEGER,
   status_przew     TEXT    NOT NULL DEFAULT 'nieprzewleczona'
                      CHECK (status_przew IN ('przewleczona', 'nieprzewleczona')),
   lokalizacja      TEXT    NOT NULL DEFAULT 'magazyn'
@@ -87,6 +88,7 @@ CREATE TABLE IF NOT EXISTS zlecenia (
   numer             TEXT    NOT NULL,
   art_id            INTEGER NOT NULL REFERENCES artykuly(id) ON DELETE RESTRICT,
   ilosc_m           NUMERIC NOT NULL,
+  wykonane_m        NUMERIC NOT NULL DEFAULT 0,
   status            TEXT    NOT NULL DEFAULT 'nowe'
                       CHECK (status IN ('nowe', 'w_trakcie', 'zrealizowane')),
   data_utworzenia   DATE    NOT NULL DEFAULT CURRENT_DATE,

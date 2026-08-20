@@ -30,6 +30,7 @@ const BLANK = {
   numer: '',
   art_id: 0,
   metry: null as number | null,
+  liczba_osn: null as number | null,
   status_przew: 'nieprzewleczona' as StatusPrzew,
   lokalizacja: 'magazyn' as LokalizacjaOsnowy,
   status_przerobki: null as string | null,
@@ -61,6 +62,7 @@ export default function MagazynView() {
       numer: o.numer,
       art_id: o.art_id,
       metry: o.metry,
+      liczba_osn: o.liczba_osn ?? null,
       status_przew: o.status_przew,
       lokalizacja: o.lokalizacja,
       status_przerobki: o.status_przerobki,
@@ -228,20 +230,31 @@ export default function MagazynView() {
             />
           </div>
           <div className="form-group">
+            <label>Liczba osnów (opcjonalnie)</label>
+            <input
+              className="form-control"
+              type="number"
+              value={form.liczba_osn ?? ''}
+              onChange={e => setField('liczba_osn', e.target.value ? parseInt(e.target.value) : null)}
+            />
+          </div>
+        </div>
+        <div className="grid-2">
+          <div className="form-group">
             <label>Przewleczenie</label>
             <select className="form-control" value={form.status_przew} onChange={e => setField('status_przew', e.target.value)}>
               <option value="nieprzewleczona">Nieprzewleczona</option>
               <option value="przewleczona">Przewleczona</option>
             </select>
           </div>
-        </div>
-        <div className="grid-2">
           <div className="form-group">
             <label>Lokalizacja</label>
             <select className="form-control" value={form.lokalizacja} onChange={e => setField('lokalizacja', e.target.value)}>
               {Object.entries(LOK_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
             </select>
           </div>
+        </div>
+        <div className="grid-2">
           <div className="form-group">
             <label>Status przeróbki</label>
             <select className="form-control" value={form.status_przerobki || ''} onChange={e => setField('status_przerobki', e.target.value || null)}>

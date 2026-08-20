@@ -34,6 +34,7 @@ export default function ZleceniaView() {
     numer: '',
     art_id: artykuly[0]?.id || 0,
     ilosc_m: 1000,
+    wykonane_m: 0,
     status: 'nowe' as StatusZlecenia,
     data_utworzenia: today(),
     termin_realizacji: nextMonth(),
@@ -58,6 +59,7 @@ export default function ZleceniaView() {
       numer: z.numer,
       art_id: z.art_id,
       ilosc_m: z.ilosc_m,
+      wykonane_m: z.wykonane_m,
       status: z.status,
       data_utworzenia: z.data_utworzenia,
       termin_realizacji: z.termin_realizacji,
@@ -156,6 +158,8 @@ export default function ZleceniaView() {
                   <th>Numer</th>
                   <th>Artykuł</th>
                   <th>Ilość</th>
+                  <th>Wykonano</th>
+                  <th>Pozostało</th>
                   <th>Termin</th>
                   <th>Priorytet</th>
                   <th>Status</th>
@@ -171,6 +175,8 @@ export default function ZleceniaView() {
                       <td className="fw-600">{z.numer}</td>
                       <td>{art?.nazwa || '—'}</td>
                       <td>{z.ilosc_m.toLocaleString()} m</td>
+                      <td>{z.wykonane_m.toLocaleString()} m</td>
+                      <td>{z.pozostalo_m.toLocaleString()} m</td>
                       <td>{formatDate(z.termin_realizacji)}</td>
                       <td>
                         <span className={`badge ${priorytetBadge(z.priorytet)}`}>
@@ -237,6 +243,12 @@ export default function ZleceniaView() {
             <input className="form-control" type="number" value={form.ilosc_m} onChange={e => setField('ilosc_m', parseFloat(e.target.value))} />
           </div>
           <div className="form-group">
+            <label>Wykonano (m)</label>
+            <input className="form-control" type="number" min="0" value={form.wykonane_m} onChange={e => setField('wykonane_m', parseFloat(e.target.value) || 0)} />
+          </div>
+        </div>
+        <div className="grid-2">
+          <div className="form-group">
             <label>Priorytet</label>
             <select className="form-control" value={form.priorytet} onChange={e => setField('priorytet', e.target.value)}>
               <option value="niski">Niski</option>
@@ -245,18 +257,16 @@ export default function ZleceniaView() {
               <option value="krytyczny">Krytyczny</option>
             </select>
           </div>
-        </div>
-        <div className="grid-2">
           <div className="form-group">
             <label>Data utworzenia</label>
             <input className="form-control" type="date" value={form.data_utworzenia} onChange={e => setField('data_utworzenia', e.target.value)} />
           </div>
+        </div>
+        <div className="grid-2">
           <div className="form-group">
             <label>Termin realizacji</label>
             <input className="form-control" type="date" value={form.termin_realizacji} onChange={e => setField('termin_realizacji', e.target.value)} />
           </div>
-        </div>
-        <div className="grid-2">
           <div className="form-group">
             <label>Status</label>
             <select className="form-control" value={form.status} onChange={e => setField('status', e.target.value)}>
@@ -265,10 +275,10 @@ export default function ZleceniaView() {
               <option value="zrealizowane">Zrealizowane</option>
             </select>
           </div>
-          <div className="form-group">
-            <label>Uwagi</label>
-            <input className="form-control" value={form.uwagi} onChange={e => setField('uwagi', e.target.value)} placeholder="opcjonalnie" />
-          </div>
+        </div>
+        <div className="form-group">
+          <label>Uwagi</label>
+          <input className="form-control" value={form.uwagi} onChange={e => setField('uwagi', e.target.value)} placeholder="opcjonalnie" />
         </div>
         <div className="modal-actions">
           <button className="btn btn-secondary" onClick={() => setFormOpen(false)}>Anuluj</button>
