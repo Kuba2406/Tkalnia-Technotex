@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import useSWR, { mutate } from 'swr';
 import type { Krosno, Osnowa, Artykul, StatusKrosna } from '@/types/domain';
 import { apiPatch, apiPost } from '@/lib/utils/api';
@@ -37,6 +37,12 @@ export default function LoomDetail({ krosnoid, onClose, onDelete }: Props) {
   const [confirmReset, setConfirmReset] = useState(false);
   const [histData, setHistData] = useState<{ id: number; typ: string; opis: string; uzytkownik: string; created_at: string }[]>([]);
   const [histLoaded, setHistLoaded] = useState(false);
+
+  // Reset history when switching looms so stale data is never shown
+  useEffect(() => {
+    setHistData([]);
+    setHistLoaded(false);
+  }, [krosnoid]);
 
   if (!k) return null;
 
@@ -188,7 +194,8 @@ export default function LoomDetail({ krosnoid, onClose, onDelete }: Props) {
     if (histLoaded) return;
     fetch(`/api/historia?encja=krosno&encja_id=${krosnoid}&limit=20`)
       .then(r => r.json())
-      .then(r => { setHistData(r.data || []); setHistLoaded(true); });
+      .then(r => { setHistData(r.data || []); setHistLoaded(true); })
+      .catch(() => { notifySave('error'); });
   }
 
   return (
