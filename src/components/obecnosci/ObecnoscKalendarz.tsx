@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import type { Pracownik, Nieobecnosc } from '@/types/domain';
-import { daysOfMonth, dayOfWeek, DAYS_PL_SHORT } from '@/lib/utils/formatting';
+import { daysOfMonth, dayOfWeek, DAYS_PL_SHORT, formatDate } from '@/lib/utils/formatting';
 
 interface Props {
   pracownicy: Pracownik[];
@@ -19,12 +19,10 @@ export default function ObecnoscKalendarz({ pracownicy, nieobecnosci }: Props) {
   const days = daysOfMonth(year, month);
   const firstDow = dayOfWeek(days[0]); // 0=Mon
 
-  // Build a map: date -> list of absences
   const absMap = new Map<string, Nieobecnosc[]>();
   nieobecnosci.forEach(n => {
-    // Expand range into individual days
-    const od = new Date(n.od);
-    const doD = new Date(n.do);
+    const od = new Date(n.data_od);
+    const doD = new Date(n.data_do);
     const cur = new Date(od);
     while (cur <= doD) {
       const key = cur.toISOString().split('T')[0];
@@ -44,23 +42,14 @@ export default function ObecnoscKalendarz({ pracownicy, nieobecnosci }: Props) {
   }
 
   const monthLabel = new Date(year, month - 1, 1).toLocaleString('pl-PL', { month: 'long', year: 'numeric' });
+  const monthPrefix = `${year}-${String(month).padStart(2, '0')}`;
 
-  // Aggregate counts for header
-  const urlopsCount = nieobecnosci.filter(n => {
-    const inMonth = n.od.startsWith(`${year}-${String(month).padStart(2, '0')}`) ||
-      n.do.startsWith(`${year}-${String(month).padStart(2, '0')}`);
-    return n.typ === 'urlop' && inMonth;
-  }).length;
-  const chorobyCount = nieobecnosci.filter(n => {
-    const inMonth = n.od.startsWith(`${year}-${String(month).padStart(2, '0')}`) ||
-      n.do.startsWith(`${year}-${String(month).padStart(2, '0')}`);
-    return n.typ === 'chory' && inMonth;
-  }).length;
+  const urlopsCount = nieobecnosci.filter(n => n.typ === 'urlop' && (n.data_od.startsWith(monthPrefix) || n.data_do.startsWith(monthPrefix) || (n.data_od < `${monthPrefix}-01` && n.data_do >= `${monthPrefix}-01`))).length;
+  const chorobyCount = nieobecnosci.filter(n => n.typ === 'chory' && (n.data_od.startsWith(monthPrefix) || n.data_do.startsWith(monthPrefix) || (n.data_od < `${monthPrefix}-01` && n.data_do >= `${monthPrefix}-01`))).length;
 
   return (
     <div>
       <div className="card">
-        {/* Navigation */}
         <div className="flex items-center gap-12 mb-16" style={{ justifyContent: 'space-between', flexWrap: 'wrap' }}>
           <div className="flex items-center gap-8">
             <button className="btn btn-secondary btn-sm" onClick={prevMonth}>‹</button>
@@ -81,7 +70,6 @@ export default function ObecnoscKalendarz({ pracownicy, nieobecnosci }: Props) {
           </div>
         </div>
 
-        {/* Legend */}
         <div className="flex gap-12 mb-12">
           <div className="flex items-center gap-4">
             <span style={{ width: 12, height: 12, borderRadius: 2, background: '#dbeafe', display: 'inline-block' }} />
@@ -93,19 +81,9 @@ export default function ObecnoscKalendarz({ pracownicy, nieobecnosci }: Props) {
           </div>
         </div>
 
-        {/* Calendar grid */}
         <div className="calendar">
-          {/* Day headers */}
-          {DAYS_PL_SHORT.map(d => (
-            <div key={d} className="calendar-header-cell">{d}</div>
-          ))}
-
-          {/* Empty cells before first day */}
-          {Array.from({ length: firstDow }).map((_, i) => (
-            <div key={`empty-${i}`} className="calendar-day empty" />
-          ))}
-
-          {/* Day cells */}
+          {DAYS_PL_SHORT.map(d => <div key={d} className="calendar-header-cell">{d}</div>)}
+          {Array.from({ length: firstDow }).map((_, i) => <div key={`empty-${i}`} className="calendar-day empty" />)}
           {days.map(dateStr => {
             const absHere = absMap.get(dateStr) || [];
             const isToday = dateStr === todayStr;
@@ -125,31 +103,27 @@ export default function ObecnoscKalendarz({ pracownicy, nieobecnosci }: Props) {
                     </div>
                   );
                 })}
-                {absHere.length > 3 && (
-                  <div className="text-xs text-muted" style={{ marginTop: 2 }}>+{absHere.length - 3} wię...</div>
-                )}
+                {absHere.length > 3 && <div className="text-xs text-muted" style={{ marginTop: 2 }}>+{absHere.length - 3} wię...</div>}
               </div>
             );
           })}
         </div>
       </div>
 
-      {/* List view */}
       <div className="card">
         <h3 style={{ marginBottom: 12, fontSize: '0.95rem', fontWeight: 600 }}>
           Nieobecności w {monthLabel}
         </h3>
         {(() => {
-          const monthPrefix = `${year}-${String(month).padStart(2, '0')}`;
           const relevant = nieobecnosci.filter(n =>
-            n.od.startsWith(monthPrefix) || n.do.startsWith(monthPrefix) ||
-            (n.od < monthPrefix + '-01' && n.do >= monthPrefix + '-01')
+            n.data_od.startsWith(monthPrefix) || n.data_do.startsWith(monthPrefix) ||
+            (n.data_od < `${monthPrefix}-01` && n.data_do >= `${monthPrefix}-01`)
           );
           if (relevant.length === 0) {
             return <p className="text-muted text-sm">Brak nieobecności w tym miesiącu.</p>;
           }
           return relevant
-            .sort((a, b) => a.od.localeCompare(b.od))
+            .sort((a, b) => a.data_od.localeCompare(b.data_od))
             .map(n => {
               const p = pracownicy.find(x => x.id === n.pracownik_id);
               return (
@@ -159,14 +133,14 @@ export default function ObecnoscKalendarz({ pracownicy, nieobecnosci }: Props) {
                     {n.typ === 'urlop' ? 'Urlop' : 'Chory / L4'}
                   </span>
                   <div className="absence-period">
-                    {n.od === n.do
-                      ? formatDate(n.od)
-                      : `${formatDate(n.od)} – ${formatDate(n.do)}`}
+                    {n.data_od === n.data_do
+                      ? formatDate(n.data_od)
+                      : `${formatDate(n.data_od)} – ${formatDate(n.data_do)}`}
                   </div>
                   <div className="text-muted text-sm">
                     {(() => {
-                      const od = new Date(n.od);
-                      const doD = new Date(n.do);
+                      const od = new Date(n.data_od);
+                      const doD = new Date(n.data_do);
                       const diff = Math.round((doD.getTime() - od.getTime()) / 86400000) + 1;
                       return `${diff} ${diff === 1 ? 'dzień' : 'dni'}`;
                     })()}
@@ -178,9 +152,4 @@ export default function ObecnoscKalendarz({ pracownicy, nieobecnosci }: Props) {
       </div>
     </div>
   );
-}
-
-function formatDate(d: string) {
-  const [y, m, day] = d.split('-');
-  return `${day}.${m}.${y}`;
 }
