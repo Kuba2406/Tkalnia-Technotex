@@ -23,11 +23,11 @@ export default function ObecnosciView() {
   const { data: nieobecnosci = [] } = useSWR<Nieobecnosc[]>('/api/nieobecnosci', fetcher);
 
   const TABS: { id: Tab; label: string }[] = [
-    { id: 'pracownicy',   label: 'Pracownicy' },
-    { id: 'zmiany',       label: 'Plan zmian' },
-    { id: 'obecnosc',     label: 'Obecność dzienna' },
+    { id: 'pracownicy', label: 'Pracownicy' },
+    { id: 'zmiany', label: 'Plan zmian' },
+    { id: 'obecnosc', label: 'Obecność dzienna' },
     { id: 'nieobecnosci', label: 'Nieobecności' },
-    { id: 'kalendarz',    label: 'Kalendarz' },
+    { id: 'kalendarz', label: 'Kalendarz' },
   ];
 
   return (
@@ -52,9 +52,6 @@ export default function ObecnosciView() {
   );
 }
 
-// ============================================================
-// Tab: Pracownicy
-// ============================================================
 function TabPracownicy({ pracownicy, nieobecnosci, obecnosci }: { pracownicy: Pracownik[], nieobecnosci: Nieobecnosc[], obecnosci: Obecnosc[] }) {
   const [formOpen, setFormOpen] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
@@ -75,11 +72,8 @@ function TabPracownicy({ pracownicy, nieobecnosci, obecnosci }: { pracownicy: Pr
     if (!form.imie.trim() || !form.nazwisko.trim()) return alert('Podaj imię i nazwisko.');
     notifySave('saving');
     try {
-      if (editId) {
-        await apiPatch(`/api/pracownicy/${editId}`, form);
-      } else {
-        await apiPost('/api/pracownicy', form);
-      }
+      if (editId) await apiPatch(`/api/pracownicy/${editId}`, form);
+      else await apiPost('/api/pracownicy', form);
       await mutate('/api/pracownicy');
       setFormOpen(false);
       notifySave('saved');
@@ -128,7 +122,6 @@ function TabPracownicy({ pracownicy, nieobecnosci, obecnosci }: { pracownicy: Pr
         </table>
       </div>
 
-      {/* Form */}
       <Modal open={formOpen} onClose={() => setFormOpen(false)} title={editId ? 'Edytuj pracownika' : 'Nowy pracownik'}>
         <div className="grid-2">
           <div className="form-group"><label>Imię</label>
@@ -159,7 +152,6 @@ function TabPracownicy({ pracownicy, nieobecnosci, obecnosci }: { pracownicy: Pr
       <Confirm open={!!deleteId} message={`Usunąć pracownika?`} confirmLabel="Usuń" confirmClass="btn-danger"
         onConfirm={handleDelete} onCancel={() => setDeleteId(null)} />
 
-      {/* Detail modal */}
       <Modal open={!!detailP} onClose={() => setDetailId(null)} title={detailP ? `${detailP.imie} ${detailP.nazwisko}` : ''} wide>
         {detailP && <WorkerDetail p={detailP} obecnosci={obecnosci} nieobecnosci={nieobecnosci} />}
       </Modal>
@@ -169,9 +161,7 @@ function TabPracownicy({ pracownicy, nieobecnosci, obecnosci }: { pracownicy: Pr
 
 function WorkerDetail({ p, obecnosci, nieobecnosci }: { p: Pracownik, obecnosci: Obecnosc[], nieobecnosci: Nieobecnosc[] }) {
   const myNieo = nieobecnosci.filter(n => n.pracownik_id === p.id);
-  const myObs = obecnosci.filter(o => o.pracownik_id === p.id)
-    .sort((a, b) => b.data.localeCompare(a.data))
-    .slice(0, 10);
+  const myObs = obecnosci.filter(o => o.pracownik_id === p.id).sort((a, b) => b.data.localeCompare(a.data)).slice(0, 10);
 
   return (
     <>
@@ -188,7 +178,7 @@ function WorkerDetail({ p, obecnosci, nieobecnosci }: { p: Pracownik, obecnosci:
             <span className={`badge ${n.typ === 'urlop' ? 'badge-info' : 'badge-warning'}`}>
               {n.typ === 'urlop' ? 'Urlop' : 'Chory / L4'}
             </span>
-            <span className="absence-period">{formatDate(n.od)} – {formatDate(n.do)}</span>
+            <span className="absence-period">{formatDate(n.data_od)} – {formatDate(n.data_do)}</span>
           </div>
         ))}
       </div>
@@ -217,9 +207,6 @@ function WorkerDetail({ p, obecnosci, nieobecnosci }: { p: Pracownik, obecnosci:
   );
 }
 
-// ============================================================
-// Tab: Plan zmian
-// ============================================================
 function TabPlanZmian({ pracownicy }: { pracownicy: Pracownik[] }) {
   async function toggle(p: Pracownik, checked: boolean) {
     notifySave('saving');
@@ -247,11 +234,7 @@ function TabPlanZmian({ pracownicy }: { pracownicy: Pracownik[] }) {
           <div className="shift-toggle-wrap">
             <span className="shift-z1">Z1</span>
             <label className="toggle">
-              <input
-                type="checkbox"
-                checked={p.zmiana === 2}
-                onChange={e => toggle(p, e.target.checked)}
-              />
+              <input type="checkbox" checked={p.zmiana === 2} onChange={e => toggle(p, e.target.checked)} />
               <span className="toggle-slider" />
             </label>
             <span className="shift-z2">Z2</span>
@@ -262,36 +245,21 @@ function TabPlanZmian({ pracownicy }: { pracownicy: Pracownik[] }) {
   );
 }
 
-// ============================================================
-// Tab: Obecność dzienna
-// ============================================================
-function TabObecnosc({
-  pracownicy,
-  obecnosci,
-  nieobecnosci,
-}: {
-  pracownicy: Pracownik[];
-  obecnosci: Obecnosc[];
-  nieobecnosci: Nieobecnosc[];
-}) {
+function TabObecnosc({ pracownicy, obecnosci, nieobecnosci }: { pracownicy: Pracownik[]; obecnosci: Obecnosc[]; nieobecnosci: Nieobecnosc[] }) {
   const [date, setDate] = useState(today());
   const [zmiana, setZmiana] = useState<1 | 2>(1);
   const [attOpen, setAttOpen] = useState(false);
-
-  // For the daily attendance modal: local state per worker
   const [attState, setAttState] = useState<Record<number, { status: string; stanowisko: string }>>({});
 
-  // Summary for current date
   const summary1 = obecnosci.filter(o => o.data === date && o.zmiana === 1);
   const summary2 = obecnosci.filter(o => o.data === date && o.zmiana === 2);
 
   function getPlannedAbsence(pracownikId: number) {
-    return nieobecnosci.find(n => n.pracownik_id === pracownikId && n.od <= date && n.do >= date);
+    return nieobecnosci.find(n => n.pracownik_id === pracownikId && n.data_od <= date && n.data_do >= date);
   }
 
   function openAttendance(zm: 1 | 2) {
     setZmiana(zm);
-    // Initialize attState from existing records or planned absences
     const workers = pracownicy.filter(p => p.zmiana === zm);
     const init: Record<number, { status: string; stanowisko: string }> = {};
     workers.forEach(p => {
@@ -306,20 +274,12 @@ function TabObecnosc({
     setAttOpen(true);
   }
 
-  // FIX for V1 bug: use local React state for immediate UI update
-  // instead of manipulating global state which caused display issues
   function setStatus(pracownikId: number, status: string) {
-    setAttState(prev => ({
-      ...prev,
-      [pracownikId]: { ...prev[pracownikId], status },
-    }));
+    setAttState(prev => ({ ...prev, [pracownikId]: { ...prev[pracownikId], status } }));
   }
 
   function setStanowisko(pracownikId: number, stan: string) {
-    setAttState(prev => ({
-      ...prev,
-      [pracownikId]: { ...prev[pracownikId], stanowisko: stan },
-    }));
+    setAttState(prev => ({ ...prev, [pracownikId]: { ...prev[pracownikId], stanowisko: stan } }));
   }
 
   async function saveAttendance() {
@@ -329,7 +289,6 @@ function TabObecnosc({
       await Promise.all(workers.map(async p => {
         const rec = attState[p.id];
         if (!rec) return;
-        // Check if record exists
         const existing = obecnosci.find(o => o.pracownik_id === p.id && o.data === date && o.zmiana === zmiana);
         if (existing) {
           await apiPatch(`/api/obecnosci/${existing.id}`, { status: rec.status, stanowisko: rec.stanowisko });
@@ -356,25 +315,16 @@ function TabObecnosc({
 
   return (
     <div className="card">
-      <div className="section-header">
-        <h3>Sprawdź obecność</h3>
-      </div>
+      <div className="section-header"><h3>Sprawdź obecność</h3></div>
       <div className="flex gap-8 items-center mb-16 flex-wrap">
         <div className="flex gap-6 items-center">
           <label style={{ fontSize: '.8rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Data:</label>
-          <input
-            className="form-control"
-            type="date"
-            value={date}
-            onChange={e => setDate(e.target.value)}
-            style={{ width: 160 }}
-          />
+          <input className="form-control" type="date" value={date} onChange={e => setDate(e.target.value)} style={{ width: 160 }} />
         </div>
         <button className="btn btn-primary" onClick={() => openAttendance(1)}>Sprawdź – Zmiana 1</button>
         <button className="btn btn-warning" onClick={() => openAttendance(2)}>Sprawdź – Zmiana 2</button>
       </div>
 
-      {/* Summary */}
       {[{ records: summary1, zm: 1 }, { records: summary2, zm: 2 }].map(({ records, zm }) => {
         if (!records.length) return null;
         return (
@@ -394,7 +344,6 @@ function TabObecnosc({
         );
       })}
 
-      {/* Attendance modal */}
       <Modal open={attOpen} onClose={() => setAttOpen(false)} title={`Obecność – Zmiana ${zmiana} – ${formatDate(date)}`} wide>
         <p className="text-muted text-sm mb-16">{workers.length} pracowników w tej zmianie</p>
         {workers.map(p => {
@@ -404,26 +353,13 @@ function TabObecnosc({
           return (
             <div key={p.id} className="att-row">
               <div className="att-name">{p.imie} {p.nazwisko}</div>
-              {/* FIX: Controlled React component – no vanilla JS DOM manipulation */}
               <div className="att-status-btns">
                 {(['obecny', 'nieobecny', 'chory', 'urlop'] as const).map(s => (
-                  <button
-                    key={s}
-                    className={`status-btn${rec.status === s ? ` sel-${s}` : ''}`}
-                    onClick={() => setStatus(p.id, s)}
-                    type="button"
-                  >
-                    {s}
-                  </button>
+                  <button key={s} className={`status-btn${rec.status === s ? ` sel-${s}` : ''}`} onClick={() => setStatus(p.id, s)} type="button">{s}</button>
                 ))}
               </div>
               <div className="att-stanowisko">
-                <select
-                  className="form-control"
-                  style={{ fontSize: '.78rem', padding: '4px 7px' }}
-                  value={rec.stanowisko}
-                  onChange={e => setStanowisko(p.id, e.target.value)}
-                >
+                <select className="form-control" style={{ fontSize: '.78rem', padding: '4px 7px' }} value={rec.stanowisko} onChange={e => setStanowisko(p.id, e.target.value)}>
                   <option value="tkalnia">Tkalnia</option>
                   <option value="snowalnia">Snowalnia</option>
                   <option value="klejarnia">Klejarnia</option>
@@ -443,17 +379,14 @@ function TabObecnosc({
   );
 }
 
-// ============================================================
-// Tab: Nieobecności
-// ============================================================
 function TabNieobecnosci({ pracownicy, nieobecnosci }: { pracownicy: Pracownik[], nieobecnosci: Nieobecnosc[] }) {
   const [formOpen, setFormOpen] = useState(false);
-  const [form, setForm] = useState({ pracownik_id: 0, typ: 'urlop', od: '', do: '', uwagi: '' });
+  const [form, setForm] = useState({ pracownik_id: 0, typ: 'urlop', data_od: '', data_do: '', uwagi: '' });
   const setField = (k: string, v: unknown) => setForm(f => ({ ...f, [k]: v }));
 
   async function handleSave() {
-    if (!form.od || !form.do) return alert('Podaj daty.');
-    if (form.od > form.do) return alert('Data od musi być przed datą do.');
+    if (!form.data_od || !form.data_do) return alert('Podaj daty.');
+    if (form.data_od > form.data_do) return alert('Data od musi być przed datą do.');
     if (!form.pracownik_id) return alert('Wybierz pracownika.');
     notifySave('saving');
     try {
@@ -473,13 +406,13 @@ function TabNieobecnosci({ pracownicy, nieobecnosci }: { pracownicy: Pracownik[]
     } catch { notifySave('error'); }
   }
 
-  const sorted = [...nieobecnosci].sort((a, b) => b.od.localeCompare(a.od));
+  const sorted = [...nieobecnosci].sort((a, b) => b.data_od.localeCompare(a.data_od));
 
   return (
     <div className="card">
       <div className="section-header">
         <h3>Planowane nieobecności ({nieobecnosci.length})</h3>
-        <button className="btn btn-primary" onClick={() => { setForm({ pracownik_id: pracownicy[0]?.id || 0, typ: 'urlop', od: '', do: '', uwagi: '' }); setFormOpen(true); }}>
+        <button className="btn btn-primary" onClick={() => { setForm({ pracownik_id: pracownicy[0]?.id || 0, typ: 'urlop', data_od: '', data_do: '', uwagi: '' }); setFormOpen(true); }}>
           + Dodaj nieobecność
         </button>
       </div>
@@ -493,7 +426,7 @@ function TabNieobecnosci({ pracownicy, nieobecnosci }: { pracownicy: Pracownik[]
             <span className={`badge ${n.typ === 'urlop' ? 'badge-info' : 'badge-warning'}`}>
               {n.typ === 'urlop' ? 'Urlop' : 'Chory / L4'}
             </span>
-            <div className="absence-period">{formatDate(n.od)} – {formatDate(n.do)}</div>
+            <div className="absence-period">{formatDate(n.data_od)} – {formatDate(n.data_do)}</div>
             <button className="btn btn-sm btn-danger" onClick={() => handleDelete(n.id)}>Usuń</button>
           </div>
         );
@@ -512,9 +445,9 @@ function TabNieobecnosci({ pracownicy, nieobecnosci }: { pracownicy: Pracownik[]
           </select></div>
         <div className="grid-2">
           <div className="form-group"><label>Od</label>
-            <input className="form-control" type="date" value={form.od} onChange={e => setField('od', e.target.value)} /></div>
+            <input className="form-control" type="date" value={form.data_od} onChange={e => setField('data_od', e.target.value)} /></div>
           <div className="form-group"><label>Do</label>
-            <input className="form-control" type="date" value={form.do} onChange={e => setField('do', e.target.value)} /></div>
+            <input className="form-control" type="date" value={form.data_do} onChange={e => setField('data_do', e.target.value)} /></div>
         </div>
         <div className="form-group"><label>Uwagi (opcjonalnie)</label>
           <input className="form-control" value={form.uwagi} onChange={e => setField('uwagi', e.target.value)} /></div>
