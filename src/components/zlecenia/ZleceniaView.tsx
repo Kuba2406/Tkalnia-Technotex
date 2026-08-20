@@ -34,6 +34,8 @@ export default function ZleceniaView() {
     numer: '',
     art_id: artykuly[0]?.id || 0,
     ilosc_m: 1000,
+    wykonane_m: 0,
+    pozostalo_m: 1000,
     status: 'nowe' as StatusZlecenia,
     data_utworzenia: today(),
     termin_realizacji: nextMonth(),
@@ -58,6 +60,8 @@ export default function ZleceniaView() {
       numer: z.numer,
       art_id: z.art_id,
       ilosc_m: z.ilosc_m,
+      wykonane_m: z.wykonane_m,
+      pozostalo_m: z.pozostalo_m,
       status: z.status,
       data_utworzenia: z.data_utworzenia,
       termin_realizacji: z.termin_realizacji,
@@ -74,11 +78,8 @@ export default function ZleceniaView() {
     if (!form.art_id) return alert('Wybierz artykuł.');
     notifySave('saving');
     try {
-      if (editId) {
-        await apiPatch(`/api/zlecenia/${editId}`, form);
-      } else {
-        await apiPost('/api/zlecenia', form);
-      }
+      if (editId) await apiPatch(`/api/zlecenia/${editId}`, form);
+      else await apiPost('/api/zlecenia', form);
       await mutate('/api/zlecenia');
       setFormOpen(false);
       notifySave('saved');
@@ -102,21 +103,7 @@ export default function ZleceniaView() {
     }
   }
 
-  async function przekazDo(z: Zlecenie, target: 'snowalnia' | 'klejarnia') {
-    notifySave('saving');
-    try {
-      await apiPatch(`/api/zlecenia/${z.id}`, { przekazane_do: target, status: 'w_trakcie' });
-      await mutate('/api/zlecenia');
-      notifySave('saved');
-    } catch (e: unknown) {
-      notifySave('error');
-      alert((e as Error).message);
-    }
-  }
-
-  const visible = statusFilter === 'all'
-    ? zlecenia
-    : zlecenia.filter(z => z.status === statusFilter);
+  const visible = statusFilter === 'all' ? zlecenia : zlecenia.filter(z => z.status === statusFilter);
 
   return (
     <div>
@@ -129,12 +116,7 @@ export default function ZleceniaView() {
         <div className="section-header">
           <div className="flex gap-8 items-center flex-wrap">
             <h3>Zlecenia ({visible.length})</h3>
-            <select
-              className="form-control"
-              style={{ width: 'auto', fontSize: '0.82rem' }}
-              value={statusFilter}
-              onChange={e => setStatusFilter(e.target.value)}
-            >
+            <select className="form-control" style={{ width: 'auto', fontSize: '0.82rem' }} value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
               <option value="all">Wszystkie</option>
               <option value="nowe">Nowe</option>
               <option value="w_trakcie">W trakcie</option>
@@ -156,6 +138,8 @@ export default function ZleceniaView() {
                   <th>Numer</th>
                   <th>Artykuł</th>
                   <th>Ilość</th>
+                  <th>Wykonane</th>
+                  <th>Pozostało</th>
                   <th>Termin</th>
                   <th>Priorytet</th>
                   <th>Status</th>
@@ -171,30 +155,17 @@ export default function ZleceniaView() {
                       <td className="fw-600">{z.numer}</td>
                       <td>{art?.nazwa || '—'}</td>
                       <td>{z.ilosc_m.toLocaleString()} m</td>
+                      <td>{z.wykonane_m.toLocaleString()} m</td>
+                      <td>{z.pozostalo_m.toLocaleString()} m</td>
                       <td>{formatDate(z.termin_realizacji)}</td>
-                      <td>
-                        <span className={`badge ${priorytetBadge(z.priorytet)}`}>
-                          {priorytetLabel(z.priorytet)}
-                        </span>
-                      </td>
-                      <td>
-                        <span className={`badge ${statusZleceniaBadge(z.status)}`}>
-                          {statusZleceniaLabel(z.status)}
-                        </span>
-                      </td>
-                      <td>
-                        {z.przekazane_do ? (
-                          <span className="badge badge-purple">{z.przekazane_do === 'snowalnia' ? 'Snowalnia' : 'Klejarnia'}</span>
-                        ) : '—'}
-                      </td>
+                      <td><span className={`badge ${priorytetBadge(z.priorytet)}`}>{priorytetLabel(z.priorytet)}</span></td>
+                      <td><span className={`badge ${statusZleceniaBadge(z.status)}`}>{statusZleceniaLabel(z.status)}</span></td>
+                      <td>{z.przekazane_do ? <span className="badge badge-purple">{z.przekazane_do === 'snowalnia' ? 'Snowalnia' : 'Klejarnia'}</span> : '—'}</td>
                       <td>
                         <div className="btn-group">
                           <button className="btn btn-sm btn-secondary" onClick={() => openEdit(z)}>Edytuj</button>
                           {!z.przekazane_do && z.status !== 'zrealizowane' && art && (
-                            <button
-                              className="btn btn-sm btn-primary"
-                              onClick={() => przekazDo(z, art.rodzaj_snucia === 'zespołowe' ? 'klejarnia' : 'snowalnia')}
-                            >
+                            <button className="btn btn-sm btn-primary" onClick={() => apiPatch(`/api/zlecenia/${z.id}`, { przekazane_do: art.rodzaj_snucia === 'zespołowe' ? 'klejarnia' : 'snowalnia', status: 'w_trakcie' }).then(() => mutate('/api/zlecenia'))}>
                               Przekaż → {art.rodzaj_snucia === 'zespołowe' ? 'Klejarnia' : 'Snowalnia'}
                             </button>
                           )}
@@ -210,81 +181,31 @@ export default function ZleceniaView() {
         )}
       </div>
 
-      {/* Form modal */}
-      <Modal
-        open={formOpen}
-        onClose={() => setFormOpen(false)}
-        title={editId ? 'Edytuj zlecenie' : 'Nowe zlecenie'}
-        wide
-      >
+      <Modal open={formOpen} onClose={() => setFormOpen(false)} title={editId ? 'Edytuj zlecenie' : 'Nowe zlecenie'} wide>
         <div className="grid-2">
-          <div className="form-group">
-            <label>Numer zlecenia</label>
-            <input className="form-control" value={form.numer} onChange={e => setField('numer', e.target.value)} />
-          </div>
-          <div className="form-group">
-            <label>Artykuł</label>
-            <select className="form-control" value={form.art_id} onChange={e => setField('art_id', parseInt(e.target.value))}>
-              {artykuly.map(a => (
-                <option key={a.id} value={a.id}>{a.nazwa}</option>
-              ))}
-            </select>
-          </div>
+          <div className="form-group"><label>Numer zlecenia</label><input className="form-control" value={form.numer} onChange={e => setField('numer', e.target.value)} /></div>
+          <div className="form-group"><label>Artykuł</label><select className="form-control" value={form.art_id} onChange={e => setField('art_id', parseInt(e.target.value))}>{artykuly.map(a => <option key={a.id} value={a.id}>{a.nazwa}</option>)}</select></div>
         </div>
         <div className="grid-2">
-          <div className="form-group">
-            <label>Ilość (m)</label>
-            <input className="form-control" type="number" value={form.ilosc_m} onChange={e => setField('ilosc_m', parseFloat(e.target.value))} />
-          </div>
-          <div className="form-group">
-            <label>Priorytet</label>
-            <select className="form-control" value={form.priorytet} onChange={e => setField('priorytet', e.target.value)}>
-              <option value="niski">Niski</option>
-              <option value="standard">Standard</option>
-              <option value="wysoki">Wysoki</option>
-              <option value="krytyczny">Krytyczny</option>
-            </select>
-          </div>
+          <div className="form-group"><label>Ilość (m)</label><input className="form-control" type="number" value={form.ilosc_m} onChange={e => { const ilosc = parseFloat(e.target.value); setForm(f => ({ ...f, ilosc_m: ilosc, pozostalo_m: Math.max(0, ilosc - f.wykonane_m) })); }} /></div>
+          <div className="form-group"><label>Wykonane (m)</label><input className="form-control" type="number" value={form.wykonane_m} onChange={e => { const wykonane = parseFloat(e.target.value); setForm(f => ({ ...f, wykonane_m: wykonane, pozostalo_m: Math.max(0, f.ilosc_m - wykonane) })); }} /></div>
         </div>
         <div className="grid-2">
-          <div className="form-group">
-            <label>Data utworzenia</label>
-            <input className="form-control" type="date" value={form.data_utworzenia} onChange={e => setField('data_utworzenia', e.target.value)} />
-          </div>
-          <div className="form-group">
-            <label>Termin realizacji</label>
-            <input className="form-control" type="date" value={form.termin_realizacji} onChange={e => setField('termin_realizacji', e.target.value)} />
-          </div>
+          <div className="form-group"><label>Pozostało (m)</label><input className="form-control" type="number" value={form.pozostalo_m} onChange={e => { const pozostalo = parseFloat(e.target.value); setForm(f => ({ ...f, pozostalo_m: pozostalo, wykonane_m: Math.max(0, f.ilosc_m - pozostalo) })); }} /></div>
+          <div className="form-group"><label>Priorytet</label><select className="form-control" value={form.priorytet} onChange={e => setField('priorytet', e.target.value)}><option value="niski">Niski</option><option value="standard">Standard</option><option value="wysoki">Wysoki</option><option value="krytyczny">Krytyczny</option></select></div>
         </div>
         <div className="grid-2">
-          <div className="form-group">
-            <label>Status</label>
-            <select className="form-control" value={form.status} onChange={e => setField('status', e.target.value)}>
-              <option value="nowe">Nowe</option>
-              <option value="w_trakcie">W trakcie</option>
-              <option value="zrealizowane">Zrealizowane</option>
-            </select>
-          </div>
-          <div className="form-group">
-            <label>Uwagi</label>
-            <input className="form-control" value={form.uwagi} onChange={e => setField('uwagi', e.target.value)} placeholder="opcjonalnie" />
-          </div>
+          <div className="form-group"><label>Data utworzenia</label><input className="form-control" type="date" value={form.data_utworzenia} onChange={e => setField('data_utworzenia', e.target.value)} /></div>
+          <div className="form-group"><label>Termin realizacji</label><input className="form-control" type="date" value={form.termin_realizacji} onChange={e => setField('termin_realizacji', e.target.value)} /></div>
         </div>
-        <div className="modal-actions">
-          <button className="btn btn-secondary" onClick={() => setFormOpen(false)}>Anuluj</button>
-          <button className="btn btn-primary" onClick={handleSave}>{editId ? 'Zapisz zmiany' : 'Dodaj zlecenie'}</button>
+        <div className="grid-2">
+          <div className="form-group"><label>Status</label><select className="form-control" value={form.status} onChange={e => setField('status', e.target.value)}><option value="nowe">Nowe</option><option value="w_trakcie">W trakcie</option><option value="zrealizowane">Zrealizowane</option></select></div>
+          <div className="form-group"><label>Uwagi</label><input className="form-control" value={form.uwagi} onChange={e => setField('uwagi', e.target.value)} placeholder="opcjonalnie" /></div>
         </div>
+        <div className="modal-actions"><button className="btn btn-secondary" onClick={() => setFormOpen(false)}>Anuluj</button><button className="btn btn-primary" onClick={handleSave}>{editId ? 'Zapisz zmiany' : 'Dodaj zlecenie'}</button></div>
       </Modal>
 
-      {/* Delete confirm */}
-      <Confirm
-        open={!!deleteId}
-        message={`Usunąć zlecenie "${zlecenia.find(z => z.id === deleteId)?.numer}"?`}
-        confirmLabel="Usuń"
-        confirmClass="btn-danger"
-        onConfirm={handleDelete}
-        onCancel={() => setDeleteId(null)}
-      />
+      <Confirm open={!!deleteId} message={`Usunąć zlecenie "${zlecenia.find(z => z.id === deleteId)?.numer}"?`} confirmLabel="Usuń" confirmClass="btn-danger" onConfirm={handleDelete} onCancel={() => setDeleteId(null)} />
     </div>
   );
 }
