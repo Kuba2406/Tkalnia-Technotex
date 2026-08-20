@@ -1,9 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import useSWR, { mutate } from 'swr';
 import type { Krosno, Osnowa, Artykul, StatusKrosna } from '@/types/domain';
-import { apiPatch, apiPost } from '@/lib/utils/api';
+import { apiPatch } from '@/lib/utils/api';
+import { saveHistory } from '@/lib/utils/history';
 import { notifySave } from '@/components/ui/SaveStatus';
 import { statusKrosnaLabel, statusKrosnaLamp, formatDate } from '@/lib/utils/formatting';
 import Modal from '@/components/ui/Modal';
@@ -34,9 +35,14 @@ export default function LoomDetail({ krosnoid, onClose, onDelete }: Props) {
   const [confirmStatus, setConfirmStatus] = useState(false);
   const [artOpen, setArtOpen] = useState(false);
   const [newArtId, setNewArtId] = useState<number>(artykuly[0]?.id || 0);
+  const [loomDensity, setLoomDensity] = useState('');
   const [confirmReset, setConfirmReset] = useState(false);
   const [histData, setHistData] = useState<{ id: number; typ: string; opis: string; uzytkownik: string; created_at: string }[]>([]);
   const [histLoaded, setHistLoaded] = useState(false);
+
+  useEffect(() => {
+    setLoomDensity(k?.gestosc_na_krosnie?.toString() || '');
+  }, [k?.gestosc_na_krosnie, k?.id]);
 
   if (!k) return null;
 
@@ -46,39 +52,29 @@ export default function LoomDetail({ krosnoid, onClose, onDelete }: Props) {
     : osnowa
     ? artykuly.find(a => a.id === osnowa.art_id)
     : null;
+  const previousLoomDensity = k.gestosc_na_krosnie;
 
   // Available warps that can be loaded onto this loom
   // Rule: przewleczona warps in magazyn, OR (V2 rule) warps with same art as existing on some loom
-  const artNaKrosnach = new Set(
-    krosna
-      .filter(lk => lk.osnow_id)
-      .map(lk => {
-        const o = osnowy.find(x => x.id === lk.osnow_id);
-        return o?.art_id;
-      })
-      .filter(Boolean) as number[]
-  );
-
   const availableOsnowy = osnowy.filter(o => {
     if (o.lokalizacja !== 'magazyn') return false;
-    if (o.status_przew === 'przewleczona') return true;
-    // V2 business rule: allow attaching (dowiązanie) an unpierced warp
-    // if the article is already running on at least one loom
-    if (o.status_przew === 'nieprzewleczona' && artNaKrosnach.has(o.art_id)) return true;
-    return false;
+    return true;
   });
 
   async function saveStatus() {
     notifySave('saving');
     try {
       await apiPatch(`/api/krosna/${krosnoid}`, { status: newStatus });
-      // Log history
-      await apiPost('/api/historia', {
+      await saveHistory({
         encja: 'krosno',
         encja_id: krosnoid,
         typ: 'zmiana_statusu',
         opis: `Status zmieniony: ${statusKrosnaLabel(k!.status)} → ${statusKrosnaLabel(newStatus)}.`,
-        uzytkownik: 'Operator',
+        oddzial: 'tkalnia',
+        art_id: artykul?.id ?? osnowa?.art_id ?? null,
+        zlecenie_id: osnowa?.zlecenie_id ?? null,
+        krosno_id: krosnoid,
+        osnowa_id: osnowa?.id ?? null,
       });
       await mutate('/api/krosna');
       setStatusEditing(false);
@@ -96,12 +92,16 @@ export default function LoomDetail({ krosnoid, onClose, onDelete }: Props) {
     try {
       await apiPatch(`/api/krosna/${krosnoid}`, { osnow_id: zalozOsnId, art_id_override: null });
       await apiPatch(`/api/osnowy/${zalozOsnId}`, { lokalizacja: 'krosno', krosno_id: krosnoid });
-      await apiPost('/api/historia', {
+      await saveHistory({
         encja: 'krosno',
         encja_id: krosnoid,
         typ: 'zalozenie_osnowy',
-        opis: `Założono osnowę ${o.numer}${o.status_przew === 'nieprzewleczona' ? ' (dowiązanie)' : ''}.`,
-        uzytkownik: 'Operator',
+        opis: `Założono osnowę ${o.numer}${o.status_przew === 'nieprzewleczona' ? ' (manualny bypass bez przewlekalni)' : ''}.`,
+        oddzial: 'tkalnia',
+        art_id: o.art_id,
+        zlecenie_id: o.zlecenie_id,
+        krosno_id: krosnoid,
+        osnowa_id: o.id,
       });
       await mutate('/api/krosna');
       await mutate('/api/osnowy');
@@ -125,12 +125,16 @@ export default function LoomDetail({ krosnoid, onClose, onDelete }: Props) {
         status_przew: zdejmijPrzew,
         status_przerobki: null,
       });
-      await apiPost('/api/historia', {
+      await saveHistory({
         encja: 'krosno',
         encja_id: krosnoid,
         typ: 'zdjecie_osnowy',
-        opis: `Zdjęto osnowę ${osnowa.numer}${metrVal != null ? `, ${metrVal} m pozostałych` : ''}.`,
-        uzytkownik: 'Operator',
+        opis: `Zdjęto osnowę ${osnowa.numer}${metrVal != null ? `, ${metrVal} m pozostałych` : ''}. Operator oznaczył ją jako ${zdejmijPrzew}.`,
+        oddzial: 'tkalnia',
+        art_id: osnowa.art_id,
+        zlecenie_id: osnowa.zlecenie_id,
+        krosno_id: krosnoid,
+        osnowa_id: osnowa.id,
       });
       await mutate('/api/krosna');
       await mutate('/api/osnowy');
@@ -148,12 +152,16 @@ export default function LoomDetail({ krosnoid, onClose, onDelete }: Props) {
     notifySave('saving');
     try {
       await apiPatch(`/api/krosna/${krosnoid}`, { art_id_override: newArtId });
-      await apiPost('/api/historia', {
+      await saveHistory({
         encja: 'krosno',
         encja_id: krosnoid,
         typ: 'zmiana_artykulu',
         opis: `Ręczna zmiana artykułu: ${old} → ${newA?.nazwa || '—'}.`,
-        uzytkownik: 'Operator',
+       oddzial: 'tkalnia',
+       art_id: newArtId,
+       zlecenie_id: osnowa?.zlecenie_id ?? null,
+       krosno_id: krosnoid,
+       osnowa_id: osnowa?.id ?? null,
       });
       await mutate('/api/krosna');
       setArtOpen(false);
@@ -168,12 +176,16 @@ export default function LoomDetail({ krosnoid, onClose, onDelete }: Props) {
     notifySave('saving');
     try {
       await apiPatch(`/api/krosna/${krosnoid}`, { art_id_override: null });
-      await apiPost('/api/historia', {
+      await saveHistory({
         encja: 'krosno',
         encja_id: krosnoid,
         typ: 'zmiana_artykulu',
         opis: `Przywrócono artykuł z osnowy: ${osnArt?.nazwa || '—'}.`,
-        uzytkownik: 'Operator',
+        oddzial: 'tkalnia',
+        art_id: osnowa?.art_id ?? null,
+        zlecenie_id: osnowa?.zlecenie_id ?? null,
+        krosno_id: krosnoid,
+        osnowa_id: osnowa?.id ?? null,
       });
       await mutate('/api/krosna');
       setConfirmReset(false);
@@ -189,6 +201,33 @@ export default function LoomDetail({ krosnoid, onClose, onDelete }: Props) {
     fetch(`/api/historia?encja=krosno&encja_id=${krosnoid}&limit=20`)
       .then(r => r.json())
       .then(r => { setHistData(r.data || []); setHistLoaded(true); });
+  }
+
+  async function saveLoomDensity() {
+    const nextDensity = loomDensity.trim() ? parseFloat(loomDensity) : null;
+    if (loomDensity.trim() && !Number.isFinite(nextDensity)) {
+      alert('Podaj poprawną gęstość na krośnie lub zostaw pole puste.');
+      return;
+    }
+    notifySave('saving');
+    try {
+      await apiPatch(`/api/krosna/${krosnoid}`, { gestosc_na_krosnie: nextDensity });
+      await saveHistory({
+        encja: 'krosno',
+        encja_id: krosnoid,
+        typ: 'zmiana_gestosci_krosna',
+        opis: `Zmieniono informacyjną gęstość na krośnie: ${previousLoomDensity ?? 'brak'} → ${nextDensity ?? 'brak'} wątków/cm.`,
+        oddzial: 'tkalnia',
+        art_id: artykul?.id ?? osnowa?.art_id ?? null,
+        zlecenie_id: osnowa?.zlecenie_id ?? null,
+        krosno_id: krosnoid,
+        osnowa_id: osnowa?.id ?? null,
+      });
+      await mutate('/api/krosna');
+      notifySave('saved');
+    } catch {
+      notifySave('error');
+    }
   }
 
   return (
@@ -272,11 +311,24 @@ export default function LoomDetail({ krosnoid, onClose, onDelete }: Props) {
             <>
               <div className="info-grid" style={{ marginBottom: 10 }}>
                 <div className="info-item"><div className="lbl">Artykuł</div><div className="val">{artykul.nazwa}</div></div>
-                <div className="info-item"><div className="lbl">Wątki/cm</div><div className="val">{artykul.watki_na_cm}</div></div>
-                <div className="info-item"><div className="lbl">Rodzaj snucia</div><div className="val">{artykul.rodzaj_snucia}</div></div>
+                <div className="info-item"><div className="lbl">Gęstość bazowa</div><div className="val">{artykul.watki_na_cm} wątków/cm</div></div>
+                <div className="info-item"><div className="lbl">Typ snucia</div><div className="val">{artykul.rodzaj_snucia}</div></div>
                 {artykul.szerokosc_tkaniny && (
                   <div className="info-item"><div className="lbl">Szer. tkaniny</div><div className="val">{artykul.szerokosc_tkaniny} cm</div></div>
                 )}
+              </div>
+              <div className="form-group" style={{ marginBottom: 10 }}>
+                <label>Gęstość na krośnie (informacyjnie)</label>
+                <div className="flex gap-8 items-center">
+                  <input
+                    className="form-control"
+                    type="number"
+                    value={loomDensity}
+                    onChange={e => setLoomDensity(e.target.value)}
+                    placeholder={String(artykul.watki_na_cm)}
+                  />
+                  <button className="btn btn-sm btn-secondary" onClick={saveLoomDensity}>Zapisz</button>
+                </div>
               </div>
               <div className="btn-group">
                 <button className="btn btn-sm btn-warning" onClick={() => { setNewArtId(artykul.id); setArtOpen(true); }}>Zmień artykuł</button>
@@ -357,7 +409,7 @@ export default function LoomDetail({ krosnoid, onClose, onDelete }: Props) {
             </select>
             {zalozOsnId && osnowy.find(o => o.id === zalozOsnId)?.status_przew === 'nieprzewleczona' && (
               <p className="text-muted text-sm mt-8">
-                ⚠ Ta osnowa jest nieprzewleczona. Zostanie założona przez dowiązanie (ten sam artykuł jest już na innym krośnie).
+                ⚠ Ta osnowa jest nieprzewleczona. Operator świadomie omija przewlekalnię i zakłada ją bezpośrednio na krosno.
               </p>
             )}
           </div>

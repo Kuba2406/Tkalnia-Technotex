@@ -4,6 +4,7 @@ import { useState } from 'react';
 import useSWR, { mutate } from 'swr';
 import type { Osnowa, Artykul, Krosno, StatusPrzew, LokalizacjaOsnowy } from '@/types/domain';
 import { apiPost, apiPatch, apiDelete } from '@/lib/utils/api';
+import { saveHistory } from '@/lib/utils/history';
 import { notifySave } from '@/components/ui/SaveStatus';
 import Modal from '@/components/ui/Modal';
 import Confirm from '@/components/ui/Confirm';
@@ -30,6 +31,7 @@ const BLANK = {
   numer: '',
   art_id: 0,
   metry: null as number | null,
+  liczba_osnow: null as number | null,
   status_przew: 'nieprzewleczona' as StatusPrzew,
   lokalizacja: 'magazyn' as LokalizacjaOsnowy,
   status_przerobki: null as string | null,
@@ -61,6 +63,7 @@ export default function MagazynView() {
       numer: o.numer,
       art_id: o.art_id,
       metry: o.metry,
+      liczba_osnow: o.liczba_osnow,
       status_przew: o.status_przew,
       lokalizacja: o.lokalizacja,
       status_przerobki: o.status_przerobki,
@@ -76,8 +79,28 @@ export default function MagazynView() {
     try {
       if (editId) {
         await apiPatch(`/api/osnowy/${editId}`, form);
+        await saveHistory({
+          encja: 'osnowa',
+          encja_id: editId,
+          typ: 'edycja_osnowy',
+          opis: `Zmieniono osnowę ${form.numer}. Lokalizacja: ${form.lokalizacja}, status: ${form.status_przew}, liczba osnów: ${form.liczba_osnow ?? '—'}.`,
+          oddzial: form.lokalizacja,
+          art_id: form.art_id,
+          zlecenie_id: form.zlecenie_id,
+          osnowa_id: editId,
+        });
       } else {
-        await apiPost('/api/osnowy', form);
+        const created = await apiPost<Osnowa>('/api/osnowy', form);
+        await saveHistory({
+          encja: 'osnowa',
+          encja_id: created.id,
+          typ: 'utworzenie_osnowy',
+          opis: `Dodano osnowę ${created.numer} (${created.metry ?? '—'} m) w lokalizacji ${created.lokalizacja}.`,
+          oddzial: created.lokalizacja,
+          art_id: created.art_id,
+          zlecenie_id: created.zlecenie_id,
+          osnowa_id: created.id,
+        });
       }
       await mutate('/api/osnowy');
       setFormOpen(false);
@@ -92,7 +115,20 @@ export default function MagazynView() {
     if (!deleteId) return;
     notifySave('saving');
     try {
+      const deleted = osnowy.find(o => o.id === deleteId);
       await apiDelete(`/api/osnowy/${deleteId}`);
+      if (deleted) {
+        await saveHistory({
+          encja: 'osnowa',
+          encja_id: deleted.id,
+          typ: 'usuniecie_osnowy',
+          opis: `Usunięto osnowę ${deleted.numer}.`,
+          oddzial: deleted.lokalizacja,
+          art_id: deleted.art_id,
+          zlecenie_id: deleted.zlecenie_id,
+          osnowa_id: deleted.id,
+        });
+      }
       await mutate('/api/osnowy');
       setDeleteId(null);
       notifySave('saved');
@@ -157,6 +193,7 @@ export default function MagazynView() {
                   <th>Numer</th>
                   <th>Artykuł</th>
                   <th>Metry</th>
+                  <th>Liczba osnów</th>
                   <th>Przewleczenie</th>
                   <th>Lokalizacja</th>
                   <th>Krosno</th>
@@ -172,6 +209,7 @@ export default function MagazynView() {
                       <td className="fw-600">{o.numer}</td>
                       <td>{art?.nazwa || '—'}</td>
                       <td>{o.metry != null ? `${o.metry} m` : '—'}</td>
+                      <td>{o.liczba_osnow ?? '—'}</td>
                       <td>
                         <span className={`badge ${o.status_przew === 'przewleczona' ? 'badge-success' : 'badge-grey'}`}>
                           {o.status_przew === 'przewleczona' ? 'Przewleczona' : 'Nieprzewleczona'}
@@ -228,14 +266,23 @@ export default function MagazynView() {
             />
           </div>
           <div className="form-group">
+            <label>Liczba osnów (opcjonalnie)</label>
+            <input
+              className="form-control"
+              type="number"
+              value={form.liczba_osnow ?? ''}
+              onChange={e => setField('liczba_osnow', e.target.value ? parseInt(e.target.value, 10) : null)}
+            />
+          </div>
+        </div>
+        <div className="grid-2">
+          <div className="form-group">
             <label>Przewleczenie</label>
             <select className="form-control" value={form.status_przew} onChange={e => setField('status_przew', e.target.value)}>
               <option value="nieprzewleczona">Nieprzewleczona</option>
               <option value="przewleczona">Przewleczona</option>
             </select>
           </div>
-        </div>
-        <div className="grid-2">
           <div className="form-group">
             <label>Lokalizacja</label>
             <select className="form-control" value={form.lokalizacja} onChange={e => setField('lokalizacja', e.target.value)}>

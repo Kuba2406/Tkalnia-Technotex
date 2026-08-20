@@ -3,11 +3,12 @@
 import useSWR, { mutate } from 'swr';
 import type { Osnowa, Artykul } from '@/types/domain';
 import { apiPatch } from '@/lib/utils/api';
+import { saveHistory } from '@/lib/utils/history';
 import { notifySave } from '@/components/ui/SaveStatus';
 
 const fetcher = (url: string) => fetch(url).then(r => r.json()).then(r => r.data);
 
-export default function PrzewekalniView() {
+export default function PrzewlekalniaView() {
   const { data: osnowy = [], isLoading } = useSWR<Osnowa[]>('/api/osnowy', fetcher);
   const { data: artykuly = [] } = useSWR<Artykul[]>('/api/artykuly', fetcher);
 
@@ -19,6 +20,19 @@ export default function PrzewekalniView() {
     notifySave('saving');
     try {
       await apiPatch(`/api/osnowy/${id}`, { lokalizacja: 'przewlekalnia', status_przerobki: 'w_kolejce' });
+      const osnowa = osnowy.find(o => o.id === id);
+      if (osnowa) {
+        await saveHistory({
+          encja: 'osnowa',
+          encja_id: osnowa.id,
+          typ: 'przekazanie_do_przewlekalni',
+          opis: `Osnowę ${osnowa.numer} przekazano do przewlekalni.`,
+          oddzial: 'przewlekalnia',
+          art_id: osnowa.art_id,
+          zlecenie_id: osnowa.zlecenie_id,
+          osnowa_id: osnowa.id,
+        });
+      }
       await mutate('/api/osnowy');
       notifySave('saved');
     } catch {
@@ -26,14 +40,27 @@ export default function PrzewekalniView() {
     }
   }
 
-  async function markDone(id: number) {
+  async function returnToMagazyn(id: number, statusPrzew: 'przewleczona' | 'nieprzewleczona') {
     notifySave('saving');
     try {
       await apiPatch(`/api/osnowy/${id}`, {
-        status_przew: 'przewleczona',
+        status_przew: statusPrzew,
         lokalizacja: 'magazyn',
-        status_przerobki: 'przewleczona',
+        status_przerobki: statusPrzew === 'przewleczona' ? 'przewleczona' : null,
       });
+      const osnowa = osnowy.find(o => o.id === id);
+      if (osnowa) {
+        await saveHistory({
+          encja: 'osnowa',
+          encja_id: osnowa.id,
+          typ: 'powrot_z_przewlekalni',
+          opis: `Osnowa ${osnowa.numer} wróciła do magazynu jako ${statusPrzew}.`,
+          oddzial: 'przewlekalnia',
+          art_id: osnowa.art_id,
+          zlecenie_id: osnowa.zlecenie_id,
+          osnowa_id: osnowa.id,
+        });
+      }
       await mutate('/api/osnowy');
       notifySave('saved');
     } catch {
@@ -45,6 +72,19 @@ export default function PrzewekalniView() {
     notifySave('saving');
     try {
       await apiPatch(`/api/osnowy/${id}`, { status_przerobki: status });
+      const osnowa = osnowy.find(o => o.id === id);
+      if (osnowa) {
+        await saveHistory({
+          encja: 'osnowa',
+          encja_id: osnowa.id,
+          typ: 'zmiana_statusu_przewlekalni',
+          opis: `Status przygotowania osnowy ${osnowa.numer} zmieniono na ${status.replace(/_/g, ' ')}.`,
+          oddzial: 'przewlekalnia',
+          art_id: osnowa.art_id,
+          zlecenie_id: osnowa.zlecenie_id,
+          osnowa_id: osnowa.id,
+        });
+      }
       await mutate('/api/osnowy');
       notifySave('saved');
     } catch {
@@ -100,12 +140,14 @@ export default function PrzewekalniView() {
                         </select>
                       </td>
                       <td>
-                        <button
-                          className="btn btn-sm btn-success"
-                          onClick={() => markDone(o.id)}
-                        >
-                          ✓ Przewleczona → Magazyn
-                        </button>
+                        <div className="btn-group">
+                          <button className="btn btn-sm btn-success" onClick={() => returnToMagazyn(o.id, 'przewleczona')}>
+                            Zwróć jako przewleczoną
+                          </button>
+                          <button className="btn btn-sm btn-secondary" onClick={() => returnToMagazyn(o.id, 'nieprzewleczona')}>
+                            Zwróć jako nieprzewleczoną
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );

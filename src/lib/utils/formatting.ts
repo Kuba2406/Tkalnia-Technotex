@@ -160,6 +160,22 @@ export function priorytetZadaniaLabel(s: string): string {
   return map[s] || s;
 }
 
+export function oddzialLabel(s: string | null | undefined): string {
+  const map: Record<string, string> = {
+    snowalnia: 'Snowalnia',
+    klejarnia: 'Klejarnia',
+    przewlekalnia: 'Przewlekalnia',
+    magazyn: 'Magazyn',
+    tkalnia: 'Tkalnia',
+    artykuly: 'Artykuły',
+    zlecenia: 'Zlecenia',
+    obecnosci: 'Obecności',
+    zadania: 'Zadania',
+  };
+  if (!s) return '—';
+  return map[s] || s;
+}
+
 export function loomWidth(szerokoscCm: number): number {
   const base = 88;
   const extra = Math.max(0, szerokoscCm - 140) * 0.4;
