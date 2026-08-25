@@ -8,9 +8,10 @@ import { notifySave } from '@/components/ui/SaveStatus';
 import {
   statusKrosnaLabel, statusKrosnaLamp, loomWidth,
 } from '@/lib/utils/formatting';
-import Modal from '@/components/ui/Modal';
 import Confirm from '@/components/ui/Confirm';
 import LoomDetail from './LoomDetail';
+import TkalniaStats from './TkalniaStats';
+import AddLoomModal from './AddLoomModal';
 
 const fetcher = (url: string) => fetch(url).then(r => r.json()).then(r => r.data);
 
@@ -51,14 +52,7 @@ export default function TkalniaView() {
     rowMap.get(rid)!.push(k);
   });
 
-  // Counters
-  const counts = {
-    pracuje:    krosna.filter(k => k.status === 'pracuje').length,
-    awaria:     krosna.filter(k => k.status === 'awaria').length,
-    zatrzymane: krosna.filter(k => k.status === 'zatrzymane').length,
-    wiazanie:   krosna.filter(k => k.status === 'wiazanie').length,
-    brak:       krosna.filter(k => k.status === 'brak').length,
-  };
+  // Counters now computed inside TkalniaStats
 
   async function handleAdd() {
     if (!addForm.numer.trim()) return alert('Podaj numer krosna.');
@@ -123,25 +117,7 @@ export default function TkalniaView() {
       </div>
 
       {/* Stats */}
-      <div className="card" style={{ marginBottom: 12, padding: '14px 20px' }}>
-        <div className="flex gap-12 flex-wrap" style={{ marginBottom: 12 }}>
-          {[
-            ['Pracuje', counts.pracuje, 'var(--success)'],
-            ['Awaria', counts.awaria, 'var(--danger)'],
-            ['Zatrzymane', counts.zatrzymane, 'var(--warning)'],
-            ['Wiązanie', counts.wiazanie, 'var(--info)'],
-            ['Brak statusu', counts.brak, 'var(--grey)'],
-          ].map(([lbl, val, color]) => (
-            <div key={String(lbl)} className="info-item">
-              <div className="lbl">{lbl}</div>
-              <div className="val" style={{ color: String(color), fontSize: '1.3rem' }}>{val}</div>
-            </div>
-          ))}
-        </div>
-        <div className="btn-group">
-          <button className="btn btn-primary" onClick={() => setAddOpen(true)}>+ Dodaj krosno</button>
-        </div>
-      </div>
+      <TkalniaStats krosna={krosna} onAddClick={() => setAddOpen(true)} />
 
       {/* Loom hall */}
       <div className="card">
@@ -228,57 +204,15 @@ export default function TkalniaView() {
       )}
 
       {/* Add loom modal */}
-      <Modal open={addOpen} onClose={() => setAddOpen(false)} title="Dodaj krosno">
-        <div className="grid-2">
-          <div className="form-group">
-            <label>Numer krosna</label>
-            <input className="form-control" value={addForm.numer} onChange={e => setAF('numer', e.target.value)} placeholder="np. K-11" />
-          </div>
-          <div className="form-group">
-            <label>Typ krosna</label>
-            <select className="form-control" value={addForm.typ_id ?? ''} onChange={e => setAF('typ_id', e.target.value ? parseInt(e.target.value) : null)}>
-              <option value="">Brak</option>
-              {typy.map(t => <option key={t.id} value={t.id}>{t.nazwa}</option>)}
-            </select>
-          </div>
-        </div>
-        <div className="grid-2">
-          <div className="form-group">
-            <label>Rodzaj</label>
-            <select className="form-control" value={addForm.rodzaj} onChange={e => setAF('rodzaj', e.target.value)}>
-              <option value="pneumatyk">Pneumatyk</option>
-              <option value="rapier">Rapier</option>
-            </select>
-          </div>
-          <div className="form-group">
-            <label>Szerokość (cm)</label>
-            <input className="form-control" type="number" value={addForm.szerokosc_cm} onChange={e => setAF('szerokosc_cm', parseFloat(e.target.value))} />
-          </div>
-        </div>
-        <div className="grid-2">
-          <div className="form-group">
-            <label>Status</label>
-            <select className="form-control" value={addForm.status} onChange={e => setAF('status', e.target.value)}>
-              <option value="pracuje">Pracuje</option>
-              <option value="awaria">Awaria</option>
-              <option value="zatrzymane">Zatrzymane</option>
-              <option value="wiazanie">Wiązanie</option>
-              <option value="brak">Brak statusu</option>
-            </select>
-          </div>
-          <div className="form-group">
-            <label>Rząd</label>
-            <select className="form-control" value={addForm.rzad_id ?? ''} onChange={e => setAF('rzad_id', e.target.value ? parseInt(e.target.value) : null)}>
-              <option value="">Bez rzędu</option>
-              {rowsSorted.map(r => <option key={r.id} value={r.id}>{r.nazwa || `Rząd ${r.id}`}</option>)}
-            </select>
-          </div>
-        </div>
-        <div className="modal-actions">
-          <button className="btn btn-secondary" onClick={() => setAddOpen(false)}>Anuluj</button>
-          <button className="btn btn-primary" onClick={handleAdd}>Dodaj</button>
-        </div>
-      </Modal>
+      <AddLoomModal
+        open={addOpen}
+        onClose={() => setAddOpen(false)}
+        onAdd={handleAdd}
+        form={addForm}
+        setField={setAF}
+        typy={typy}
+        rzedy={rzedy}
+      />
 
       <Confirm
         open={!!deleteId}
