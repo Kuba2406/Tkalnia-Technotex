@@ -23,8 +23,8 @@ export default function ObecnoscKalendarz({ pracownicy, nieobecnosci }: Props) {
   const absMap = new Map<string, Nieobecnosc[]>();
   nieobecnosci.forEach(n => {
     // Expand range into individual days
-    const od = new Date(n.od);
-    const doD = new Date(n.do);
+    const od = new Date(n.data_od);
+    const doD = new Date(n.data_do);
     const cur = new Date(od);
     while (cur <= doD) {
       const key = cur.toISOString().split('T')[0];
@@ -47,13 +47,13 @@ export default function ObecnoscKalendarz({ pracownicy, nieobecnosci }: Props) {
 
   // Aggregate counts for header
   const urlopsCount = nieobecnosci.filter(n => {
-    const inMonth = n.od.startsWith(`${year}-${String(month).padStart(2, '0')}`) ||
-      n.do.startsWith(`${year}-${String(month).padStart(2, '0')}`);
+    const inMonth = n.data_od.startsWith(`${year}-${String(month).padStart(2, '0')}`) ||
+      n.data_do.startsWith(`${year}-${String(month).padStart(2, '0')}`);
     return n.typ === 'urlop' && inMonth;
   }).length;
   const chorobyCount = nieobecnosci.filter(n => {
-    const inMonth = n.od.startsWith(`${year}-${String(month).padStart(2, '0')}`) ||
-      n.do.startsWith(`${year}-${String(month).padStart(2, '0')}`);
+    const inMonth = n.data_od.startsWith(`${year}-${String(month).padStart(2, '0')}`) ||
+      n.data_do.startsWith(`${year}-${String(month).padStart(2, '0')}`);
     return n.typ === 'chory' && inMonth;
   }).length;
 
@@ -142,14 +142,14 @@ export default function ObecnoscKalendarz({ pracownicy, nieobecnosci }: Props) {
         {(() => {
           const monthPrefix = `${year}-${String(month).padStart(2, '0')}`;
           const relevant = nieobecnosci.filter(n =>
-            n.od.startsWith(monthPrefix) || n.do.startsWith(monthPrefix) ||
-            (n.od < monthPrefix + '-01' && n.do >= monthPrefix + '-01')
+            n.data_od.startsWith(monthPrefix) || n.data_do.startsWith(monthPrefix) ||
+            (n.data_od < monthPrefix + '-01' && n.data_do >= monthPrefix + '-01')
           );
           if (relevant.length === 0) {
             return <p className="text-muted text-sm">Brak nieobecności w tym miesiącu.</p>;
           }
           return relevant
-            .sort((a, b) => a.od.localeCompare(b.od))
+            .sort((a, b) => a.data_od.localeCompare(b.data_od))
             .map(n => {
               const p = pracownicy.find(x => x.id === n.pracownik_id);
               return (
@@ -159,14 +159,14 @@ export default function ObecnoscKalendarz({ pracownicy, nieobecnosci }: Props) {
                     {n.typ === 'urlop' ? 'Urlop' : 'Chory / L4'}
                   </span>
                   <div className="absence-period">
-                    {n.od === n.do
-                      ? formatDate(n.od)
-                      : `${formatDate(n.od)} – ${formatDate(n.do)}`}
+                    {n.data_od === n.data_do
+                      ? formatDate(n.data_od)
+                      : `${formatDate(n.data_od)} – ${formatDate(n.data_do)}`}
                   </div>
                   <div className="text-muted text-sm">
                     {(() => {
-                      const od = new Date(n.od);
-                      const doD = new Date(n.do);
+                      const od = new Date(n.data_od);
+                      const doD = new Date(n.data_do);
                       const diff = Math.round((doD.getTime() - od.getTime()) / 86400000) + 1;
                       return `${diff} ${diff === 1 ? 'dzień' : 'dni'}`;
                     })()}

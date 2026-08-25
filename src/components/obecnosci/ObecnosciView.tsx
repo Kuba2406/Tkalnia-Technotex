@@ -188,7 +188,7 @@ function WorkerDetail({ p, obecnosci, nieobecnosci }: { p: Pracownik, obecnosci:
             <span className={`badge ${n.typ === 'urlop' ? 'badge-info' : 'badge-warning'}`}>
               {n.typ === 'urlop' ? 'Urlop' : 'Chory / L4'}
             </span>
-            <span className="absence-period">{formatDate(n.od)} – {formatDate(n.do)}</span>
+            <span className="absence-period">{formatDate(n.data_od)} – {formatDate(n.data_do)}</span>
           </div>
         ))}
       </div>
@@ -286,7 +286,7 @@ function TabObecnosc({
   const summary2 = obecnosci.filter(o => o.data === date && o.zmiana === 2);
 
   function getPlannedAbsence(pracownikId: number) {
-    return nieobecnosci.find(n => n.pracownik_id === pracownikId && n.od <= date && n.do >= date);
+    return nieobecnosci.find(n => n.pracownik_id === pracownikId && n.data_od <= date && n.data_do >= date);
   }
 
   function openAttendance(zm: 1 | 2) {
@@ -473,7 +473,7 @@ function TabNieobecnosci({ pracownicy, nieobecnosci }: { pracownicy: Pracownik[]
     } catch { notifySave('error'); }
   }
 
-  const sorted = [...nieobecnosci].sort((a, b) => b.od.localeCompare(a.od));
+  const sorted = [...nieobecnosci].sort((a, b) => b.data_od.localeCompare(a.data_od));
 
   return (
     <div className="card">
@@ -493,7 +493,7 @@ function TabNieobecnosci({ pracownicy, nieobecnosci }: { pracownicy: Pracownik[]
             <span className={`badge ${n.typ === 'urlop' ? 'badge-info' : 'badge-warning'}`}>
               {n.typ === 'urlop' ? 'Urlop' : 'Chory / L4'}
             </span>
-            <div className="absence-period">{formatDate(n.od)} – {formatDate(n.do)}</div>
+            <div className="absence-period">{formatDate(n.data_od)} – {formatDate(n.data_do)}</div>
             <button className="btn btn-sm btn-danger" onClick={() => handleDelete(n.id)}>Usuń</button>
           </div>
         );
