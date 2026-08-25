@@ -9,7 +9,7 @@ export async function GET() {
   const { data, error } = await sb
     .from(TABLE)
     .select('*, pracownik:pracownicy(*)')
-    .order('od', { ascending: true });
+    .order('data_od', { ascending: true });
   if (error) return err(error.message, 500);
   return ok(data);
 }
