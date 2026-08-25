@@ -30,6 +30,7 @@ const BLANK = {
   numer: '',
   art_id: 0,
   metry: null as number | null,
+  liczba_osn: null as number | null,
   status_przew: 'nieprzewleczona' as StatusPrzew,
   lokalizacja: 'magazyn' as LokalizacjaOsnowy,
   status_przerobki: null as string | null,
@@ -61,6 +62,7 @@ export default function MagazynView() {
       numer: o.numer,
       art_id: o.art_id,
       metry: o.metry,
+      liczba_osn: o.liczba_osn,
       status_przew: o.status_przew,
       lokalizacja: o.lokalizacja,
       status_przerobki: o.status_przerobki,
@@ -157,6 +159,7 @@ export default function MagazynView() {
                   <th>Numer</th>
                   <th>Artykuł</th>
                   <th>Metry</th>
+                  <th>Liczba osn.</th>
                   <th>Przewleczenie</th>
                   <th>Lokalizacja</th>
                   <th>Krosno</th>
@@ -172,6 +175,7 @@ export default function MagazynView() {
                       <td className="fw-600">{o.numer}</td>
                       <td>{art?.nazwa || '—'}</td>
                       <td>{o.metry != null ? `${o.metry} m` : '—'}</td>
+                      <td>{o.liczba_osn ?? '—'}</td>
                       <td>
                         <span className={`badge ${o.status_przew === 'przewleczona' ? 'badge-success' : 'badge-grey'}`}>
                           {o.status_przew === 'przewleczona' ? 'Przewleczona' : 'Nieprzewleczona'}
@@ -227,6 +231,17 @@ export default function MagazynView() {
               onChange={e => setField('metry', e.target.value ? parseFloat(e.target.value) : null)}
             />
           </div>
+          <div className="form-group">
+            <label>Liczba osnów (opcjonalnie)</label>
+            <input
+              className="form-control"
+              type="number"
+              value={form.liczba_osn ?? ''}
+              onChange={e => setField('liczba_osn', e.target.value ? parseInt(e.target.value, 10) : null)}
+            />
+          </div>
+        </div>
+        <div className="grid-2">
           <div className="form-group">
             <label>Przewleczenie</label>
             <select className="form-control" value={form.status_przew} onChange={e => setField('status_przew', e.target.value)}>
