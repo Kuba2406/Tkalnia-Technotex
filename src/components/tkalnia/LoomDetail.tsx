@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import useSWR, { mutate } from 'swr';
 import type { Krosno, Osnowa, Artykul, StatusKrosna } from '@/types/domain';
 import { apiPatch, apiPost } from '@/lib/utils/api';
@@ -37,6 +37,17 @@ export default function LoomDetail({ krosnoid, onClose, onDelete }: Props) {
   const [confirmReset, setConfirmReset] = useState(false);
   const [histData, setHistData] = useState<{ id: number; typ: string; opis: string; uzytkownik: string; created_at: string }[]>([]);
   const [histLoaded, setHistLoaded] = useState(false);
+  const [histLoading, setHistLoading] = useState(false);
+  const [histError, setHistError] = useState<string | null>(null);
+  const histRequestRef = useRef(0);
+
+  useEffect(() => {
+    histRequestRef.current += 1;
+    setHistData([]);
+    setHistLoaded(false);
+    setHistLoading(false);
+    setHistError(null);
+  }, [krosnoid]);
 
   if (!k) return null;
 
@@ -184,11 +195,24 @@ export default function LoomDetail({ krosnoid, onClose, onDelete }: Props) {
   }
 
   // History for this loom
-  function loadHistory() {
-    if (histLoaded) return;
-    fetch(`/api/historia?encja=krosno&encja_id=${krosnoid}&limit=20`)
-      .then(r => r.json())
-      .then(r => { setHistData(r.data || []); setHistLoaded(true); });
+  async function loadHistory() {
+    if (histLoaded || histLoading) return;
+    const requestId = ++histRequestRef.current;
+    setHistLoading(true);
+    setHistError(null);
+    try {
+      const res = await fetch(`/api/historia?encja=krosno&encja_id=${krosnoid}&limit=20`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const payload = await res.json();
+      if (requestId !== histRequestRef.current) return;
+      setHistData(Array.isArray(payload?.data) ? payload.data : []);
+      setHistLoaded(true);
+    } catch (error) {
+      if (requestId !== histRequestRef.current) return;
+      setHistError(error instanceof Error ? error.message : 'Nie udało się pobrać historii.');
+    } finally {
+      if (requestId === histRequestRef.current) setHistLoading(false);
+    }
   }
 
   return (
@@ -303,9 +327,12 @@ export default function LoomDetail({ krosnoid, onClose, onDelete }: Props) {
           <div className="detail-section-title">
             Historia{' '}
             {!histLoaded && (
-              <button className="btn btn-xs btn-secondary" style={{ marginLeft: 8 }} onClick={loadHistory}>Pokaż</button>
+              <button className="btn btn-xs btn-secondary" style={{ marginLeft: 8 }} onClick={loadHistory}>
+                {histLoading ? 'Ładowanie…' : 'Pokaż'}
+              </button>
             )}
           </div>
+          {histError && <p className="text-muted text-sm">Nie udało się załadować historii: {histError}</p>}
           {histLoaded ? (
             histData.length === 0 ? (
               <p className="text-muted text-sm">Brak historii.</p>

@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { ok, err } from '@/lib/utils/api';
+import { parseKrosnoPayload } from '@/lib/utils/mutationValidation';
 
 const TABLE = 'krosna';
 
@@ -12,16 +13,20 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
-  const body = await req.json();
-  const sb = createServerClient();
-  const { data, error } = await sb
-    .from(TABLE)
-    .update(body)
-    .eq('id', params.id)
-    .select()
-    .single();
-  if (error) return err(error.message, 400);
-  return ok(data);
+  try {
+    const payload = parseKrosnoPayload(await req.json(), 'patch');
+    const sb = createServerClient();
+    const { data, error } = await sb
+      .from(TABLE)
+      .update(payload)
+      .eq('id', params.id)
+      .select()
+      .single();
+    if (error) return err(error.message, 400);
+    return ok(data);
+  } catch (error) {
+    return err(error instanceof Error ? error.message : 'Nieprawidłowy payload.', 400);
+  }
 }
 
 export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {

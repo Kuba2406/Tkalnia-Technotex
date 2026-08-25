@@ -76,6 +76,9 @@ CREATE TABLE IF NOT EXISTS osnowy (
   updated_at       TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+ALTER TABLE osnowy
+  ADD COLUMN IF NOT EXISTS liczba_osn INTEGER;
+
 -- Add FK from krosna to osnowy
 ALTER TABLE krosna
   ADD CONSTRAINT fk_krosna_osnow
@@ -87,6 +90,8 @@ CREATE TABLE IF NOT EXISTS zlecenia (
   numer             TEXT    NOT NULL,
   art_id            INTEGER NOT NULL REFERENCES artykuly(id) ON DELETE RESTRICT,
   ilosc_m           NUMERIC NOT NULL,
+  wykonane_m        NUMERIC NOT NULL DEFAULT 0,
+  pozostalo_m       NUMERIC NOT NULL DEFAULT 0,
   status            TEXT    NOT NULL DEFAULT 'nowe'
                       CHECK (status IN ('nowe', 'w_trakcie', 'zrealizowane')),
   data_utworzenia   DATE    NOT NULL DEFAULT CURRENT_DATE,
@@ -99,6 +104,17 @@ CREATE TABLE IF NOT EXISTS zlecenia (
   created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at        TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+ALTER TABLE zlecenia
+  ADD COLUMN IF NOT EXISTS wykonane_m NUMERIC NOT NULL DEFAULT 0;
+
+ALTER TABLE zlecenia
+  ADD COLUMN IF NOT EXISTS pozostalo_m NUMERIC NOT NULL DEFAULT 0;
+
+UPDATE zlecenia
+SET
+  wykonane_m = COALESCE(wykonane_m, 0),
+  pozostalo_m = GREATEST(COALESCE(ilosc_m, 0) - COALESCE(wykonane_m, 0), 0);
 
 -- Add FK from osnowy to zlecenia
 ALTER TABLE osnowy
