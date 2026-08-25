@@ -188,7 +188,7 @@ function WorkerDetail({ p, obecnosci, nieobecnosci }: { p: Pracownik, obecnosci:
             <span className={`badge ${n.typ === 'urlop' ? 'badge-info' : 'badge-warning'}`}>
               {n.typ === 'urlop' ? 'Urlop' : 'Chory / L4'}
             </span>
-            <span className="absence-period">{formatDate(n.od)} – {formatDate(n.do)}</span>
+            <span className="absence-period">{formatDate(n.data_od)} – {formatDate(n.data_do)}</span>
           </div>
         ))}
       </div>
@@ -286,7 +286,7 @@ function TabObecnosc({
   const summary2 = obecnosci.filter(o => o.data === date && o.zmiana === 2);
 
   function getPlannedAbsence(pracownikId: number) {
-    return nieobecnosci.find(n => n.pracownik_id === pracownikId && n.od <= date && n.do >= date);
+    return nieobecnosci.find(n => n.pracownik_id === pracownikId && n.data_od <= date && n.data_do >= date);
   }
 
   function openAttendance(zm: 1 | 2) {
@@ -448,12 +448,12 @@ function TabObecnosc({
 // ============================================================
 function TabNieobecnosci({ pracownicy, nieobecnosci }: { pracownicy: Pracownik[], nieobecnosci: Nieobecnosc[] }) {
   const [formOpen, setFormOpen] = useState(false);
-  const [form, setForm] = useState({ pracownik_id: 0, typ: 'urlop', od: '', do: '', uwagi: '' });
+  const [form, setForm] = useState({ pracownik_id: 0, typ: 'urlop', data_od: '', data_do: '', uwagi: '' });
   const setField = (k: string, v: unknown) => setForm(f => ({ ...f, [k]: v }));
 
   async function handleSave() {
-    if (!form.od || !form.do) return alert('Podaj daty.');
-    if (form.od > form.do) return alert('Data od musi być przed datą do.');
+    if (!form.data_od || !form.data_do) return alert('Podaj daty.');
+    if (form.data_od > form.data_do) return alert('Data od musi być przed datą do.');
     if (!form.pracownik_id) return alert('Wybierz pracownika.');
     notifySave('saving');
     try {
@@ -473,13 +473,13 @@ function TabNieobecnosci({ pracownicy, nieobecnosci }: { pracownicy: Pracownik[]
     } catch { notifySave('error'); }
   }
 
-  const sorted = [...nieobecnosci].sort((a, b) => b.od.localeCompare(a.od));
+  const sorted = [...nieobecnosci].sort((a, b) => b.data_od.localeCompare(a.data_od));
 
   return (
     <div className="card">
       <div className="section-header">
         <h3>Planowane nieobecności ({nieobecnosci.length})</h3>
-        <button className="btn btn-primary" onClick={() => { setForm({ pracownik_id: pracownicy[0]?.id || 0, typ: 'urlop', od: '', do: '', uwagi: '' }); setFormOpen(true); }}>
+        <button className="btn btn-primary" onClick={() => { setForm({ pracownik_id: pracownicy[0]?.id || 0, typ: 'urlop', data_od: '', data_do: '', uwagi: '' }); setFormOpen(true); }}>
           + Dodaj nieobecność
         </button>
       </div>
@@ -493,7 +493,7 @@ function TabNieobecnosci({ pracownicy, nieobecnosci }: { pracownicy: Pracownik[]
             <span className={`badge ${n.typ === 'urlop' ? 'badge-info' : 'badge-warning'}`}>
               {n.typ === 'urlop' ? 'Urlop' : 'Chory / L4'}
             </span>
-            <div className="absence-period">{formatDate(n.od)} – {formatDate(n.do)}</div>
+            <div className="absence-period">{formatDate(n.data_od)} – {formatDate(n.data_do)}</div>
             <button className="btn btn-sm btn-danger" onClick={() => handleDelete(n.id)}>Usuń</button>
           </div>
         );
@@ -512,9 +512,9 @@ function TabNieobecnosci({ pracownicy, nieobecnosci }: { pracownicy: Pracownik[]
           </select></div>
         <div className="grid-2">
           <div className="form-group"><label>Od</label>
-            <input className="form-control" type="date" value={form.od} onChange={e => setField('od', e.target.value)} /></div>
+            <input className="form-control" type="date" value={form.data_od} onChange={e => setField('data_od', e.target.value)} /></div>
           <div className="form-group"><label>Do</label>
-            <input className="form-control" type="date" value={form.do} onChange={e => setField('do', e.target.value)} /></div>
+            <input className="form-control" type="date" value={form.data_do} onChange={e => setField('data_do', e.target.value)} /></div>
         </div>
         <div className="form-group"><label>Uwagi (opcjonalnie)</label>
           <input className="form-control" value={form.uwagi} onChange={e => setField('uwagi', e.target.value)} /></div>
